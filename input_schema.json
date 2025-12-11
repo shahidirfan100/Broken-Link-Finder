@@ -6,7 +6,7 @@
     "baseUrl": {
       "title": "Website URL",
       "type": "string",
-      "description": "The URL to start crawling from. Can be a homepage, category page, or specific article.",
+      "description": "The URL to start crawling from. Can be a homepage (https://example.com/) or a specific page.",
       "prefill": "https://www.example.com/",
       "editor": "textfield",
       "maxLength": 500
@@ -14,25 +14,25 @@
     "maxPages": {
       "title": "Max pages to crawl",
       "type": "integer",
-      "description": "Maximum number of pages to crawl. Set lower for faster runs.",
-      "prefill": 100,
-      "default": 100,
+      "description": "Maximum number of pages to crawl. Set higher for full site audits.",
+      "prefill": 500,
+      "default": 500,
       "minimum": 1,
-      "maximum": 10000
+      "maximum": 50000
     },
     "maxCrawlDepth": {
       "title": "Crawl depth",
       "type": "integer",
-      "description": "How deep to crawl. 1 = only starting page, 2 = starting page + linked pages, 3 = go deeper into articles, etc.",
-      "prefill": 3,
-      "default": 3,
+      "description": "How many levels deep to follow links from the starting page. Set to 10+ for full site crawls.",
+      "prefill": 10,
+      "default": 10,
       "minimum": 1,
-      "maximum": 10
+      "maximum": 50
     },
     "maxConcurrency": {
       "title": "Max concurrency",
       "type": "integer",
-      "description": "Number of pages to crawl in parallel. Higher = faster but more server load.",
+      "description": "Number of pages to crawl in parallel. Higher = faster but uses more resources.",
       "prefill": 10,
       "default": 10,
       "minimum": 1,
@@ -41,32 +41,32 @@
     "checkExternalLinks": {
       "title": "Check external links",
       "type": "boolean",
-      "description": "If true, also check if external links (to other websites) are broken.",
+      "description": "Also verify if links to external websites are working.",
       "default": true
     },
     "saveOnlyBrokenLinks": {
       "title": "Save only broken links",
       "type": "boolean",
-      "description": "If true, only broken links are saved to dataset. If false, all links are saved.",
+      "description": "Only save broken links to the dataset. Disable to save all links.",
       "default": true
     },
     "crawlSubdomains": {
       "title": "Crawl subdomains",
       "type": "boolean",
-      "description": "If true, also crawl subdomains (e.g., blog.example.com when crawling example.com).",
+      "description": "Also crawl subdomains (e.g., blog.example.com when crawling example.com).",
       "default": false
     },
     "notificationEmails": {
       "title": "Notification emails",
       "type": "array",
-      "description": "Email addresses to notify when broken links are found.",
+      "description": "Email addresses to receive the broken links report.",
       "editor": "stringList",
       "prefill": []
     },
     "proxyConfiguration": {
       "title": "Proxy configuration",
       "type": "object",
-      "description": "Proxy settings. Recommended for large crawls to avoid IP blocks.",
+      "description": "Proxy settings. Use for large crawls to avoid rate limiting.",
       "prefill": {
         "useApifyProxy": true
       },

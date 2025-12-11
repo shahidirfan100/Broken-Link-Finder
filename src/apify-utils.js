@@ -1,47 +1,11 @@
 /**
  * Modern URL normalization utilities
- * Replaces apify-shared dependency with native implementation
+ * Ensures each unique page is only crawled once
  */
 
 /**
- * Parse URL string into components
- * @param {string} str - URL string to parse
- * @returns {object} Parsed URL components
- */
-const parseUrl = (str) => {
-    if (typeof str !== 'string') {
-        return {};
-    }
-
-    try {
-        const url = new URL(str.trim());
-        return {
-            protocol: url.protocol.replace(':', ''),
-            host: url.host,
-            path: url.pathname,
-            query: url.search.replace('?', ''),
-            fragment: url.hash.replace('#', ''),
-        };
-    } catch {
-        // Fallback to regex-based parsing for malformed URLs
-        const o = {
-            key: ['source', 'protocol', 'authority', 'userInfo', 'user', 'password', 'host', 'port', 'relative', 'path', 'directory', 'file', 'query', 'fragment'],
-            parser: /^(?:(?![^:@]+:[^:@/]*@)([^:/?#.]+):)?(?:\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?([^:/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#/]*\.[^?#/.]+(?:[?#]|$)))*\/?)?([^?#/]*))(?:\?([^#]*))?(?:#(.*))?)/,
-        };
-
-        const m = o.parser.exec(str);
-        if (!m) return {};
-
-        const uri = {};
-        let i = o.key.length;
-        while (i--) uri[o.key[i]] = m[i] || '';
-
-        return uri;
-    }
-};
-
-/**
- * Normalize URL by removing trailing slashes, sorting query params, and removing UTM params
+ * Normalize URL to ensure deduplication
+ * Removes: trailing slashes, query params (except important ones), fragments, www prefix
  * @param {string} url - URL to normalize
  * @param {boolean} keepFragment - Whether to keep the URL fragment
  * @returns {string|null} Normalized URL or null if invalid
@@ -51,26 +15,63 @@ export const normalizeUrl = (url, keepFragment = false) => {
         return null;
     }
 
-    const urlObj = parseUrl(url.trim());
+    try {
+        const urlObj = new URL(url.trim());
 
-    if (!urlObj.protocol || !urlObj.host) {
+        // Normalize protocol
+        const protocol = urlObj.protocol.replace(':', '').toLowerCase();
+        if (!['http', 'https'].includes(protocol)) {
+            return null;
+        }
+
+        // Normalize hostname - remove www prefix for consistency
+        let hostname = urlObj.hostname.toLowerCase();
+        hostname = hostname.replace(/^www\./, '');
+
+        // Normalize path - remove trailing slash, decode special chars
+        let path = urlObj.pathname;
+        path = path.replace(/\/+$/, ''); // Remove trailing slashes
+        path = path.replace(/\/+/g, '/'); // Remove duplicate slashes
+        if (!path) path = ''; // Empty path for homepage
+
+        // Filter query params - remove tracking params
+        const ignoredParams = [
+            'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+            'fbclid', 'gclid', 'msclkid', 'ref', 'source', 'mc_cid', 'mc_eid',
+            '_ga', '_gl', 'share', 'replytocom'
+        ];
+
+        const params = [];
+        urlObj.searchParams.forEach((value, key) => {
+            if (!ignoredParams.includes(key.toLowerCase())) {
+                params.push(`${key}=${value}`);
+            }
+        });
+        params.sort(); // Sort for consistency
+
+        const queryString = params.length ? `?${params.join('&')}` : '';
+        const fragmentString = keepFragment && urlObj.hash ? urlObj.hash : '';
+
+        return `${protocol}://${hostname}${path}${queryString}${fragmentString}`;
+    } catch {
+        // Return null for invalid URLs
         return null;
     }
+};
 
-    const path = urlObj.path.replace(/\/$/, '');
-    const params = urlObj.query
-        ? urlObj.query
-            .split('&')
-            .filter((param) => !/^utm_/.test(param))
-            .sort()
-        : [];
-
-    const queryString = params.length ? `?${params.join('&').trim()}` : '';
-    const fragmentString = keepFragment && urlObj.fragment ? `#${urlObj.fragment.trim()}` : '';
-
-    return `${urlObj.protocol.trim().toLowerCase()}://${urlObj.host.trim().toLowerCase()}${path.trim()}${queryString}${fragmentString}`;
+/**
+ * Get unique key for URL - used for request deduplication
+ * This is more aggressive normalization for crawling purposes
+ * @param {string} url - URL to get key for
+ * @returns {string} Unique key for the URL
+ */
+export const getUrlKey = (url) => {
+    const normalized = normalizeUrl(url, false);
+    if (!normalized) return url;
+    return normalized;
 };
 
 export default {
     normalizeUrl,
+    getUrlKey,
 };

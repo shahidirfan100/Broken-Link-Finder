@@ -1,5 +1,5 @@
 import { Actor, log } from 'apify';
-import { CheerioCrawler, sleep } from 'crawlee';
+import { CheerioCrawler } from 'crawlee';
 
 import { getPageRecord, getAndEnqueueLinkUrls } from './page-handler.js';
 import { sendEmailNotification } from './notification.js';
@@ -26,7 +26,7 @@ const input = await Actor.getInput() ?? {};
 const {
     maxConcurrency = 10,
     maxPages = 1000,
-    maxCrawlDepth = 3,
+    maxCrawlDepth = 10,
     notificationEmails,
     saveOnlyBrokenLinks = true,
     crawlSubdomains = false,
@@ -40,13 +40,13 @@ if (!baseUrl) {
     throw new Error('Invalid baseUrl provided. Please provide a valid URL.');
 }
 
-log.info('Starting Broken Link Finder', {
+// Set log level to reduce verbosity
+log.setLevel(log.LEVELS.INFO);
+
+log.info('🔗 Broken Link Finder Started', {
     baseUrl,
     maxPages,
-    maxConcurrency,
     maxCrawlDepth,
-    checkExternalLinks,
-    crawlSubdomains
 });
 
 // Setup request queue with initial URL (depth 0)
@@ -59,17 +59,21 @@ await requestQueue.addRequest({
     }
 });
 
-// Persistent storage for records (internal use, not pushed to dataset)
+// Persistent storage for records
 const records = await Actor.getValue('RECORDS') ?? [];
 Actor.on('persistState', async () => {
     await Actor.setValue('RECORDS', records);
 });
 
+// Stats tracking
+let pagesProcessed = 0;
+let linksFound = 0;
+
 // Configure retry behavior
 const { WITH_SUBDOMAINS, WITHOUT_SUBDOMAINS } = MAX_REQUEST_RETRIES;
 const maxRequestRetries = crawlSubdomains ? WITH_SUBDOMAINS : WITHOUT_SUBDOMAINS;
 
-// Create optimized CheerioCrawler for fast HTTP-based crawling
+// Create optimized CheerioCrawler
 const crawler = new CheerioCrawler({
     proxyConfiguration: proxyConfiguration
         ? await Actor.createProxyConfiguration(proxyConfiguration)
@@ -80,35 +84,25 @@ const crawler = new CheerioCrawler({
     maxRequestRetries: 1,
     requestHandlerTimeoutSecs: 30,
     navigationTimeoutSecs: 20,
-
-    // Use session pool for efficient HTTP requests
     useSessionPool: true,
     persistCookiesPerSession: true,
 
     async requestHandler(context) {
-        let { request: { url, userData } } = context;
+        const { request: { url, userData } } = context;
         const currentDepth = userData?.depth ?? 0;
 
-        log.info('Crawling page...', { url, depth: currentDepth });
-
         try {
-            // Minimal rate limiting
-            await sleep(100);
-
-            // Normalize URL
-            url = removeLastSlash(url);
+            const normalizedUrl = removeLastSlash(url);
 
             // Extract page information
             const record = await getPageRecord(context);
 
             // Check if we're within the base domain
-            const isWithinBaseDomain = hasBaseDomain(baseUrl, url);
+            const isWithinBaseDomain = hasBaseDomain(baseUrl, normalizedUrl);
             const crawlCurrentSubdomain = crawlSubdomains && isWithinBaseDomain;
 
             // Extract and check links from ALL pages within depth limit
-            // This ensures we check links inside article pages, not just the listing page
             if ((record.isBaseWebsite || isWithinBaseDomain || crawlCurrentSubdomain) && currentDepth < maxCrawlDepth) {
-                // Extract links with metadata (text, type)
                 const { linkUrls, linkData } = await getAndEnqueueLinkUrls(
                     context,
                     baseUrl,
@@ -118,30 +112,25 @@ const crawler = new CheerioCrawler({
                 );
                 record.linkUrls = linkUrls;
                 record.linkData = linkData;
-
-                log.debug('Links extracted', {
-                    url,
-                    depth: currentDepth,
-                    linksFound: linkUrls.length
-                });
+                linksFound += linkUrls.length;
             }
 
-            // Store record internally (dataset is populated during results processing)
             records.push(record);
+            pagesProcessed++;
 
-            log.debug('Page processed successfully', { url, linksFound: record.linkUrls?.length ?? 0 });
+            // Log progress every 10 pages
+            if (pagesProcessed % 10 === 0) {
+                log.info(`📊 Progress: ${pagesProcessed} pages, ${linksFound} links found`);
+            }
         } catch (error) {
-            log.warning(`Error processing page: ${error.message}`, { url });
+            log.warning(`⚠️ Error on ${url}: ${error.message}`);
 
-            // Create error record
-            const errorRecord = {
+            records.push({
                 url,
                 httpStatus: null,
                 errorMessage: error.message,
                 referrer: context.request.userData?.referrer,
-            };
-
-            records.push(errorRecord);
+            });
         }
     },
 
@@ -154,24 +143,21 @@ const crawler = new CheerioCrawler({
 
     async failedRequestHandler({ request }) {
         const url = normalizeUrl(request.url);
-        log.warning(`Page failed after ${request.retryCount + 1} attempts`, { url });
 
         const errorMessages = request.errorMessages || [];
-        const record = {
+        records.push({
             url,
             httpStatus: null,
             errorMessage: errorMessages[errorMessages.length - 1] || 'Unknown error',
             referrer: request.userData?.referrer,
-        };
-
-        records.push(record);
+        });
     },
 });
 
 // Run the crawler
-log.info(`Starting crawl of ${baseUrl}`);
 await crawler.run();
-log.info('Crawling finished, processing results...');
+
+log.info('📝 Processing results...');
 
 // Process results and push clean flat records to dataset
 const results = await getResults(baseUrl, records, saveOnlyBrokenLinks);
@@ -184,12 +170,12 @@ await saveResults(results, baseUrl, brokenLinks, startTime);
 
 // Send email notifications if broken links found
 if (brokenLinks.length > 0 && notificationEmails?.length > 0) {
-    log.info(`Found ${brokenLinks.length} broken links, sending notifications...`);
     await sendEmailNotification(results, baseUrl, notificationEmails);
 }
 
-log.info('Broken Link Finder completed', {
-    totalPages: records.length,
+log.info('✅ Broken Link Finder Complete', {
+    pagesChecked: pagesProcessed,
+    linksChecked: linksFound,
     brokenLinks: brokenLinks.length,
 });
 

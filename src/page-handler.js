@@ -1,25 +1,6 @@
-import { log } from 'apify';
 import { BASE_URL_LABEL } from './consts.js';
 import { normalizeUrl } from './tools.js';
-
-// Areas to exclude from link extraction
-const EXCLUDED_SELECTORS = [
-    'nav', 'header', 'footer',
-    '.sidebar', '#sidebar',
-    '.menu', '#menu', '.main-menu',
-    '.navigation', '#navigation',
-    '.nav', '#nav', '.navbar',
-    '.footer', '#footer',
-    '.header', '#header',
-    '.widget', '.widgets',
-    '.breadcrumb', '.breadcrumbs',
-    '.pagination', '.pager',
-    '.social', '.share', '.social-share',
-    '.comments', '#comments', '.comment-form',
-    '.related-posts', '.related',
-    '.author-box', '.author-bio',
-    '.advertisement', '.ad', '.ads',
-];
+import utils from './apify-utils.js';
 
 /**
  * Analyses the current page and creates the corresponding info record.
@@ -47,20 +28,8 @@ export const getPageRecord = async ({ request, $, response }) => {
 };
 
 /**
- * Check if an element is inside an excluded area (nav, sidebar, footer, etc.)
- */
-const isInExcludedArea = ($elem, $) => {
-    for (const selector of EXCLUDED_SELECTORS) {
-        if ($elem.closest(selector).length > 0) {
-            return true;
-        }
-    }
-    return false;
-};
-
-/**
- * Enqueue all links from the page
- * Uses broad selection and filters out navigation areas
+ * Extract and enqueue ALL links from the page
+ * Uses URL normalization to prevent duplicate crawls
  * @param {import('crawlee').CheerioCrawlingContext} context
  * @param {string} baseUrl - The base URL to determine internal/external links
  * @param {number} nextDepth - Depth for enqueued requests
@@ -72,33 +41,33 @@ export const getAndEnqueueLinkUrls = async (
     { request, enqueueLinks, $ },
     baseUrl,
     nextDepth = 1,
-    maxDepth = 3,
+    maxDepth = 10,
     checkExternalLinks = true
 ) => {
     const linkData = new Map();
     const allLinks = [];
-    const internalLinks = [];
+    const internalLinksToEnqueue = [];
+    const seenUrls = new Set();
 
-    // Get ALL links from body, then filter out excluded areas
-    const $links = $('body a[href]');
+    // Get the base hostname for comparison (without www)
+    let baseHostname;
+    try {
+        baseHostname = new URL(baseUrl).hostname.replace(/^www\./, '').toLowerCase();
+    } catch {
+        baseHostname = '';
+    }
 
-    log.debug(`Found ${$links.length} total links on page`, { url: request.url, depth: nextDepth - 1 });
-
-    $links.each((_, elem) => {
+    // Get ALL links from the page
+    $('a[href]').each((_, elem) => {
         const $link = $(elem);
-
-        // Skip if in excluded area (nav, sidebar, footer, etc.)
-        if (isInExcludedArea($link, $)) {
-            return;
-        }
-
         const href = $link.attr('href');
+
         if (!href) return;
 
-        // Skip anchor-only links, javascript, mailto, tel
+        // Skip non-http links
         if (href.startsWith('#') || href.startsWith('javascript:') ||
             href.startsWith('mailto:') || href.startsWith('tel:') ||
-            href.startsWith('data:')) {
+            href.startsWith('data:') || href.startsWith('blob:')) {
             return;
         }
 
@@ -110,27 +79,27 @@ export const getAndEnqueueLinkUrls = async (
             return; // Invalid URL, skip
         }
 
-        // Skip already processed URLs
-        if (linkData.has(absoluteUrl)) {
+        // Normalize for deduplication
+        const normalizedUrl = utils.normalizeUrl(absoluteUrl, false);
+        if (!normalizedUrl) return;
+
+        // Skip already processed URLs (in this page's context)
+        if (seenUrls.has(normalizedUrl)) {
             return;
         }
+        seenUrls.add(normalizedUrl);
 
         // Extract link metadata
         const linkText = $link.text().trim().substring(0, 100) || $link.attr('title') || '';
         const isImage = $link.find('img').length > 0;
         const imgAlt = isImage ? $link.find('img').first().attr('alt') || '' : '';
 
-        // Determine link type
+        // Determine if internal or external
         let linkType = 'internal';
         let isInternal = true;
         try {
-            const linkHost = new URL(absoluteUrl).hostname;
-            const baseHost = new URL(baseUrl || request.url).hostname;
-            // Also check without www
-            const linkHostClean = linkHost.replace(/^www\./, '');
-            const baseHostClean = baseHost.replace(/^www\./, '');
-
-            if (linkHostClean !== baseHostClean) {
+            const linkHostname = new URL(normalizedUrl).hostname.replace(/^www\./, '').toLowerCase();
+            if (linkHostname !== baseHostname) {
                 linkType = 'external';
                 isInternal = false;
             }
@@ -140,54 +109,58 @@ export const getAndEnqueueLinkUrls = async (
         }
 
         // Check if it's a resource/file link
-        const pathname = new URL(absoluteUrl).pathname;
-        const ext = pathname.split('.').pop()?.toLowerCase() || '';
-        const resourceExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'zip', 'rar', 'mp3', 'mp4', 'jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'css', 'js'];
-        if (resourceExts.includes(ext)) {
-            linkType = 'resource';
+        try {
+            const pathname = new URL(normalizedUrl).pathname;
+            const ext = pathname.split('.').pop()?.toLowerCase() || '';
+            const resourceExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'zip', 'rar', 'mp3', 'mp4', 'jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'css', 'js', 'woff', 'woff2', 'ttf', 'eot', 'ico'];
+            if (resourceExts.includes(ext)) {
+                linkType = 'resource';
+            }
+        } catch {
+            // Ignore
         }
 
-        // Store link data
-        linkData.set(absoluteUrl, {
+        // Store link data using normalized URL
+        linkData.set(normalizedUrl, {
             linkText: linkText || (isImage ? `[Image: ${imgAlt}]` : '[No text]'),
             linkType,
             isImage,
         });
 
-        // Add to appropriate list
+        // Add internal links (non-resource) to crawl queue
         if (isInternal && linkType !== 'resource') {
-            internalLinks.push(absoluteUrl);
+            internalLinksToEnqueue.push({
+                url: normalizedUrl,
+                uniqueKey: normalizedUrl, // Use normalized URL as unique key
+            });
         }
 
-        // Add all links for checking (including external if enabled)
+        // Add all links for checking
         if (isInternal || checkExternalLinks) {
-            allLinks.push(absoluteUrl);
+            allLinks.push(normalizedUrl);
         }
-    });
-
-    log.debug(`Extracted ${allLinks.length} links (${internalLinks.length} internal)`, {
-        url: request.url,
-        depth: nextDepth - 1,
-        willEnqueue: nextDepth <= maxDepth
     });
 
     // Enqueue internal links for further crawling (within depth limit)
-    if (nextDepth <= maxDepth && internalLinks.length > 0) {
-        log.info(`Enqueueing ${internalLinks.length} internal links at depth ${nextDepth}`, {
-            url: request.url
-        });
+    if (nextDepth <= maxDepth && internalLinksToEnqueue.length > 0) {
+        // Use addRequests instead of enqueueLinks for better control
+        const { addRequests } = await import('crawlee');
+        const requestQueue = await (await import('apify')).Actor.openRequestQueue();
 
-        await enqueueLinks({
-            urls: internalLinks,
-            transformRequestFunction: (req) => {
-                req.userData = {
-                    ...req.userData,
-                    referrer: request.url,
-                    depth: nextDepth,
-                };
-                return req;
-            },
-        });
+        for (const { url, uniqueKey } of internalLinksToEnqueue) {
+            try {
+                await requestQueue.addRequest({
+                    url,
+                    uniqueKey, // This ensures the same page isn't added twice
+                    userData: {
+                        referrer: request.url,
+                        depth: nextDepth,
+                    },
+                }, { forefront: false });
+            } catch {
+                // Request already exists, ignore
+            }
+        }
     }
 
     return { linkUrls: allLinks, linkData };
