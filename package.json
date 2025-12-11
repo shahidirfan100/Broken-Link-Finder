@@ -10,7 +10,7 @@
 		"apify": "^3.1.7",
 		"apify-shared": "^0.7.6",
 		"crawlee": "^3.4.1",
-		"puppeteer": "*"
+		"puppeteer": "^19.11.1"
 	},
 	"devDependencies": {
 		"@apify/eslint-config": "^0.2.2",
