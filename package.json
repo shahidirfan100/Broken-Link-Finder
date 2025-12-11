@@ -1,0 +1,31 @@
+{
+	"name": "broken-link-finder",
+	"version": "1.0.0",
+	"description": "Crawl a number of web pages using headless Chrome and Puppeteer",
+	"engines": {
+		"node": ">=22.0.0"
+	},
+	"main": "main.js",
+	"dependencies": {
+		"apify": "^3.1.7",
+		"apify-shared": "^0.7.6",
+		"crawlee": "^3.4.1",
+		"puppeteer": "*"
+	},
+	"devDependencies": {
+		"@apify/eslint-config": "^0.2.2",
+		"eslint": "^8.7.0"
+	},
+	"scripts": {
+		"start": "node src/main.js",
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"repository": {
+		"type": "git",
+		"url": ""
+	},
+	"author": "Shahid",
+	"license": "ISC",
+	"homepage": "",
+	"type": "module"
+}

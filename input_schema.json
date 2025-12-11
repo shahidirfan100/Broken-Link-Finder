@@ -1,0 +1,60 @@
+{
+  "title": "Schema for broken-link-finder",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "baseUrl": {
+      "title": "Website URL",
+      "type": "string",
+      "description": "The URL to crawl. Only URLs pages in the sub-directory will be probed.",
+      "prefill": "https://www.example.com/",
+      "editor": "textfield",
+      "maxLength": 200
+    },
+    "maxPages": {
+      "title": "Max pages",
+      "type": "integer",
+      "description": "The maximum number of pages that will be crawled. If empty, the number is not limited.",
+      "prefill": 1000
+    },
+    "notificationEmails": {
+      "title": "Notification emails",
+      "type": "array",
+      "description": "Add email addresses to receive notifications whenever the actor discovers broken links.",
+      "editor": "stringList",
+      "prefill": ["email@example.com"]
+    },
+    "saveOnlyBrokenLinks": {
+      "title": "Save only broken links",
+      "type": "boolean",
+      "description": "If false, all checked links and all information about them will be saved (not CSV friendly).",
+      "default": false
+    },
+    "crawlSubdomains": {
+      "title": "Crawl subdomains",
+      "type": "boolean",
+      "description": "If true, actor will crawl all links recursively.",
+      "default": false
+    },
+    "maxConcurrency": {
+      "title": "Max concurrency",
+      "type": "integer",
+      "description": "The maximum number of pages from the target website to crawl in parallel. You can use this number to reduce the load on the target web server."
+    },
+    "proxyConfiguration" : {
+      "title" : "Proxy configuration",
+      "type" : "object",
+      "description" : "This is required if you want to use Apify Proxy.",
+      "prefill" : {
+          "useApifyProxy" : true
+      },
+      "default" : {
+          "useApifyProxy" : true
+      },
+      "editor" : "proxy",
+      "sectionCaption" : "Proxy configuration",
+      "sectionDescription" : "Choose which proxies to use."
+    }
+  },
+  "required": ["baseUrl"]
+}
