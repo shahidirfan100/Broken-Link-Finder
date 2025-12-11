@@ -12,7 +12,6 @@
 			"actorSpecification": 1,
 			"title": "Broken Links Report",
 			"description": "Dataset containing all crawled pages and their link status",
-			"schema": "./dataset_schema.json",
 			"views": {
 				"brokenLinks": {
 					"title": "Broken Links",
@@ -22,8 +21,9 @@
 							"sourceUrl",
 							"targetUrl",
 							"httpStatus",
-							"statusText",
+							"status",
 							"isBroken",
+							"severity",
 							"errorMessage"
 						],
 						"filter": "item.isBroken === true"
@@ -42,8 +42,11 @@
 							"httpStatus": {
 								"label": "HTTP Status"
 							},
-							"statusText": {
+							"status": {
 								"label": "Status"
+							},
+							"severity": {
+								"label": "Severity"
 							},
 							"errorMessage": {
 								"label": "Error"
@@ -58,8 +61,10 @@
 						"fields": [
 							"sourceUrl",
 							"targetUrl",
+							"linkText",
+							"linkType",
 							"httpStatus",
-							"statusText",
+							"status",
 							"isBroken"
 						]
 					},
@@ -74,10 +79,16 @@
 								"label": "Target Link",
 								"format": "link"
 							},
-							"httpStatus": {
-								"label": "HTTP Status"
+							"linkText": {
+								"label": "Link Text"
 							},
-							"statusText": {
+							"linkType": {
+								"label": "Type"
+							},
+							"httpStatus": {
+								"label": "HTTP"
+							},
+							"status": {
 								"label": "Status"
 							},
 							"isBroken": {
@@ -87,11 +98,6 @@
 					}
 				}
 			}
-		},
-		"keyValueStore": {
-			"title": "Output Store",
-			"description": "Key-value store containing crawl summary and HTML report",
-			"schema": "./output_schema.json"
 		}
 	}
 }
