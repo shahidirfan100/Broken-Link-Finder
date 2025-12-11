@@ -11,7 +11,7 @@ export const STATUS_CODES = {
 
 export const EMAIL_NOTIFICATION_ACTOR_ID = 'apify/send-mail';
 
-export const NAVIGATION_TIMEOUT = 120;
+export const NAVIGATION_TIMEOUT = 15;
 
 /** 
  * If we allow request retrying when crawling subdomains, we might not
