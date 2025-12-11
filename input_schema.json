@@ -51,9 +51,7 @@
       "default" : {
           "useApifyProxy" : true
       },
-      "editor" : "proxy",
-      "sectionCaption" : "Proxy configuration",
-      "sectionDescription" : "Choose which proxies to use."
+      "editor" : "proxy"
     }
   },
   "required": ["baseUrl"]
