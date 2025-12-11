@@ -1,4 +1,3 @@
-import { Puppeteer } from 'puppeteer';
 import _ from 'underscore';
 
 import { BASE_URL_LABEL } from './consts.js';
@@ -16,7 +15,7 @@ import { normalizeUrl } from './tools.js';
  *  anchors: any[],
  * }>} page record
  */
-export const getPageRecord = async ({ request, page, response }) => {
+export const getPageRecord = async ({ request, $, response }) => {
     const { userData: { label, referrer } } = request;
 
     const url = normalizeUrl(request.url);
@@ -24,10 +23,10 @@ export const getPageRecord = async ({ request, page, response }) => {
     const record = {
         url,
         isBaseWebsite: false,
-        httpStatus: response?.status(),
-        title: await page?.title(),
+        httpStatus: response?.statusCode,
+        title: $('title').text() || $('h1').first().text() || 'No title',
         linkUrls: null,
-        anchors: await getAnchors(page),
+        anchors: await getAnchors($),
         referrer,
     };
 
@@ -47,7 +46,6 @@ export const getPageRecord = async ({ request, page, response }) => {
 
 export const getAndEnqueueLinkUrls = async ({ crawler: { requestQueue }, request, enqueueLinks }) => {
     const requests = (await enqueueLinks({
-        strategy: 'all',
         selector: 'a',
         transformRequestFunction: (req) => {
             req.userData.referrer = request.url;
@@ -61,21 +59,22 @@ export const getAndEnqueueLinkUrls = async ({ crawler: { requestQueue }, request
 /**
  * Find all HTML element IDs and <a name="xxx"> anchors,
  * basically anything that can be addressed by #fragment
- * @param {Puppeteer.Page} page 
+ * @param {CheerioAPI} $ - Cheerio instance
  * @returns {Promise<any[]>} unique anchors
  */
-const getAnchors = async (page) => {
-    const anchors = await page.evaluate(() => {
-        const anchors = [];
-        document.querySelectorAll('body a[name]').forEach((elem) => {
-            const name = elem.getAttribute('name');
-            if (name) anchors.push(name);
-        });
-        document.querySelectorAll('body [id]').forEach((elem) => {
-            const id = elem.getAttribute('id');
-            if (id) anchors.push(id);
-        });
-        return anchors;
+const getAnchors = async ($) => {
+    const anchors = [];
+
+    // Get anchors from <a name="xxx"> elements
+    $('body a[name]').each((i, elem) => {
+        const name = $(elem).attr('name');
+        if (name) anchors.push(name);
+    });
+
+    // Get anchors from elements with id attributes
+    $('body [id]').each((i, elem) => {
+        const id = $(elem).attr('id');
+        if (id) anchors.push(id);
     });
 
     const sortedAnchors = anchors.sort();

@@ -1,5 +1,5 @@
 import { Actor, log } from 'apify';
-import { PuppeteerCrawler, sleep } from 'crawlee';
+import { CheerioCrawler, sleep } from 'crawlee';
 import _ from 'underscore';
 
 import { getPageRecord, getAndEnqueueLinkUrls } from './page-handler.js';
@@ -24,62 +24,26 @@ Actor.on('persistState', async () => { await Actor.setValue('RECORDS', records);
 const { WITH_SUBDOMAINS, WITHOUT_SUBDOMAINS } = MAX_REQUEST_RETRIES;
 const maxRequestRetries = crawlSubdomains ? WITH_SUBDOMAINS : WITHOUT_SUBDOMAINS;
 
-const crawler = new PuppeteerCrawler({
+const crawler = new CheerioCrawler({
     proxyConfiguration: proxyConfiguration ? await Actor.createProxyConfiguration(proxyConfiguration) : undefined,
     requestQueue,
-    maxConcurrency: Math.min(maxConcurrency || 1, 2), // Limit max concurrency to 2 for lightweight operation
+    maxConcurrency: Math.min(maxConcurrency || 3, 5), // Higher concurrency for lightweight HTTP requests
     maxRequestsPerCrawl: maxPages,
-    maxRequestRetries: 1, // Reduce retries for faster operation
-    requestHandlerTimeoutSecs: 30, // Reduced timeout
-    browserPoolOptions: {
-        maxOpenPagesPerBrowser: 1, // Only 1 page per browser for memory efficiency
-        retireBrowserAfterPageCount: 10, // Retire browser after 10 pages to prevent memory leaks
-        preLaunchHooks: [(_pageId, launchContext) => {
-            launchContext.launchOptions = {
-                ...launchContext.launchOptions,
-                headless: true, // Ensure headless mode
-                defaultViewport: { width: 1024, height: 768 }, // Smaller viewport
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--disable-gpu',
-                    '--disable-web-security',
-                    '--disable-features=VizDisplayCompositor',
-                    '--disable-extensions',
-                    '--disable-plugins',
-                    '--disable-images', // Don't load images for speed
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding',
-                    '--memory-pressure-off',
-                    '--max_old_space_size=512' // Limit memory usage
-                ]
-            };
-        }],
-    },
-    navigationTimeoutSecs: 15, // Very short navigation timeout
+    maxRequestRetries: 1,
+    requestHandlerTimeoutSecs: 20,
+    navigationTimeoutSecs: 15,
     requestHandler: async (context) => {
-        let { request: { url, loadedUrl } } = context;
+        let { request: { url } } = context;
         log.info(`Crawling page...`, { url });
 
         try {
             // Minimal sleep for rate limiting only
-            await sleep(500);
+            await sleep(200);
 
-            // Make sure both urls don't end with slash.
+            // Make sure url doesn't end with slash
             url = removeLastSlash(url);
-            loadedUrl = removeLastSlash(loadedUrl);
 
-            // if the user enters with `http` and the page redirects to `https`
-            if (url.replace('http://', 'https://') !== loadedUrl.replace('http://', 'https://')) {
-                await context.page.waitForNavigation({ timeout: 20000, waitUntil: 'domcontentloaded' }).catch(() => {});
-            }
-
-            const record = await getPageRecord(context, crawlSubdomains);
+            const record = await getPageRecord(context);
 
             // If we're on the base website or we're allowed to crawl current subdomain, find links to new pages and enqueue them.
             const crawlCurrentSubdomain = crawlSubdomains && hasBaseDomain(baseUrl, url);
@@ -91,7 +55,7 @@ const crawler = new PuppeteerCrawler({
             records.push(record);
         } catch (error) {
             log.warning(`Error processing page ${url}: ${error.message}`);
-            
+
             // Create error record
             const errorRecord = {
                 url,
@@ -130,15 +94,6 @@ const crawler = new PuppeteerCrawler({
          */
         await Actor.pushData(record);
         records.push(record);
-    },
-
-    // Add optimized session pool for better error handling and performance
-    sessionPoolOptions: {
-        maxPoolSize: 5, // Smaller pool for lightweight operation
-        sessionOptions: {
-            maxUsageCount: 3, // Reuse sessions more aggressively
-            maxErrorScore: 0.3, // Lower error threshold
-        },
     },
 });
 
