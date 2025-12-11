@@ -24,10 +24,10 @@ const startTime = Date.now();
 // Get input configuration
 const input = await Actor.getInput() ?? {};
 const {
-    maxConcurrency = 5,
+    maxConcurrency = 10,
     maxPages,
     notificationEmails,
-    saveOnlyBrokenLinks = false,
+    saveOnlyBrokenLinks = true,
     crawlSubdomains = false,
     proxyConfiguration,
 } = input;
@@ -38,7 +38,7 @@ if (!baseUrl) {
     throw new Error('Invalid baseUrl provided. Please provide a valid URL.');
 }
 
-log.info('Starting Broken Link Finder', { baseUrl, maxPages, crawlSubdomains });
+log.info('Starting Broken Link Finder', { baseUrl, maxPages, maxConcurrency, crawlSubdomains });
 
 // Setup request queue with initial URL
 const requestQueue = await Actor.openRequestQueue();
@@ -60,7 +60,7 @@ const crawler = new CheerioCrawler({
         ? await Actor.createProxyConfiguration(proxyConfiguration)
         : undefined,
     requestQueue,
-    maxConcurrency: Math.min(maxConcurrency, 10),
+    maxConcurrency: Math.min(maxConcurrency, 50),
     maxRequestsPerCrawl: maxPages,
     maxRequestRetries: 1,
     requestHandlerTimeoutSecs: 30,

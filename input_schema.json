@@ -1,58 +1,65 @@
 {
-  "title": "Schema for broken-link-finder",
+  "title": "Schema for Broken Link Finder",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
     "baseUrl": {
       "title": "Website URL",
       "type": "string",
-      "description": "The URL to crawl. Only URLs pages in the sub-directory will be probed.",
+      "description": "The URL to crawl. Only pages in the sub-directory will be probed.",
       "prefill": "https://www.example.com/",
       "editor": "textfield",
-      "maxLength": 200
+      "maxLength": 500
     },
     "maxPages": {
       "title": "Max pages",
       "type": "integer",
       "description": "The maximum number of pages that will be crawled. If empty, the number is not limited.",
-      "prefill": 1000
-    },
-    "notificationEmails": {
-      "title": "Notification emails",
-      "type": "array",
-      "description": "Add email addresses to receive notifications whenever the actor discovers broken links.",
-      "editor": "stringList",
-      "prefill": ["email@example.com"]
-    },
-    "saveOnlyBrokenLinks": {
-      "title": "Save only broken links",
-      "type": "boolean",
-      "description": "If false, all checked links and all information about them will be saved (not CSV friendly).",
-      "default": false
-    },
-    "crawlSubdomains": {
-      "title": "Crawl subdomains",
-      "type": "boolean",
-      "description": "If true, actor will crawl all links recursively.",
-      "default": false
+      "prefill": 1000,
+      "default": 1000
     },
     "maxConcurrency": {
       "title": "Max concurrency",
       "type": "integer",
-      "description": "The maximum number of pages from the target website to crawl in parallel. You can use this number to reduce the load on the target web server."
+      "description": "The maximum number of pages to crawl in parallel. Higher values = faster but more load on target server.",
+      "prefill": 10,
+      "default": 10,
+      "minimum": 1,
+      "maximum": 50
     },
-    "proxyConfiguration" : {
-      "title" : "Proxy configuration",
-      "type" : "object",
-      "description" : "This is required if you want to use Apify Proxy.",
-      "prefill" : {
-          "useApifyProxy" : true
+    "saveOnlyBrokenLinks": {
+      "title": "Save only broken links",
+      "type": "boolean",
+      "description": "If true, only broken links will be saved to the dataset. If false, all links are saved.",
+      "default": true
+    },
+    "crawlSubdomains": {
+      "title": "Crawl subdomains",
+      "type": "boolean",
+      "description": "If true, the actor will also crawl subdomains of the base URL.",
+      "default": false
+    },
+    "notificationEmails": {
+      "title": "Notification emails",
+      "type": "array",
+      "description": "Add email addresses to receive notifications when broken links are found.",
+      "editor": "stringList",
+      "prefill": []
+    },
+    "proxyConfiguration": {
+      "title": "Proxy configuration",
+      "type": "object",
+      "description": "Proxy settings for avoiding IP blocks. Recommended for large crawls.",
+      "prefill": {
+        "useApifyProxy": true
       },
-      "default" : {
-          "useApifyProxy" : true
+      "default": {
+        "useApifyProxy": true
       },
-      "editor" : "proxy"
+      "editor": "proxy"
     }
   },
-  "required": ["baseUrl"]
+  "required": [
+    "baseUrl"
+  ]
 }
