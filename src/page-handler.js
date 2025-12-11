@@ -1,35 +1,24 @@
+import { log } from 'apify';
 import { BASE_URL_LABEL } from './consts.js';
 import { normalizeUrl } from './tools.js';
-
-// CSS selector to target main content areas
-const CONTENT_SELECTORS = [
-    'main a[href]',
-    'article a[href]',
-    '.content a[href]',
-    '#content a[href]',
-    '.post a[href]',
-    '.entry a[href]',
-    '.page-content a[href]',
-    '.post-content a[href]',
-    '.article-content a[href]',
-    '.entry-content a[href]',
-];
 
 // Areas to exclude from link extraction
 const EXCLUDED_SELECTORS = [
     'nav', 'header', 'footer',
     '.sidebar', '#sidebar',
-    '.menu', '#menu',
+    '.menu', '#menu', '.main-menu',
     '.navigation', '#navigation',
-    '.nav', '#nav',
+    '.nav', '#nav', '.navbar',
     '.footer', '#footer',
     '.header', '#header',
     '.widget', '.widgets',
     '.breadcrumb', '.breadcrumbs',
-    '.pagination',
-    '.social', '.share',
-    '.comments', '#comments',
-    '.related-posts',
+    '.pagination', '.pager',
+    '.social', '.share', '.social-share',
+    '.comments', '#comments', '.comment-form',
+    '.related-posts', '.related',
+    '.author-box', '.author-bio',
+    '.advertisement', '.ad', '.ads',
 ];
 
 /**
@@ -70,7 +59,8 @@ const isInExcludedArea = ($elem, $) => {
 };
 
 /**
- * Enqueue all links from the main page content
+ * Enqueue all links from the page
+ * Uses broad selection and filters out navigation areas
  * @param {import('crawlee').CheerioCrawlingContext} context
  * @param {string} baseUrl - The base URL to determine internal/external links
  * @param {number} nextDepth - Depth for enqueued requests
@@ -89,20 +79,15 @@ export const getAndEnqueueLinkUrls = async (
     const allLinks = [];
     const internalLinks = [];
 
-    // Try content selectors first, fall back to body
-    let $links;
-    const contentSelector = CONTENT_SELECTORS.join(', ');
-    $links = $(contentSelector);
+    // Get ALL links from body, then filter out excluded areas
+    const $links = $('body a[href]');
 
-    // If no content areas found, check all body links but exclude nav/footer
-    if ($links.length === 0) {
-        $links = $('body a[href]');
-    }
+    log.debug(`Found ${$links.length} total links on page`, { url: request.url, depth: nextDepth - 1 });
 
     $links.each((_, elem) => {
         const $link = $(elem);
 
-        // Skip if in excluded area
+        // Skip if in excluded area (nav, sidebar, footer, etc.)
         if (isInExcludedArea($link, $)) {
             return;
         }
@@ -112,7 +97,8 @@ export const getAndEnqueueLinkUrls = async (
 
         // Skip anchor-only links, javascript, mailto, tel
         if (href.startsWith('#') || href.startsWith('javascript:') ||
-            href.startsWith('mailto:') || href.startsWith('tel:')) {
+            href.startsWith('mailto:') || href.startsWith('tel:') ||
+            href.startsWith('data:')) {
             return;
         }
 
@@ -122,6 +108,11 @@ export const getAndEnqueueLinkUrls = async (
             absoluteUrl = new URL(href, request.url).href;
         } catch {
             return; // Invalid URL, skip
+        }
+
+        // Skip already processed URLs
+        if (linkData.has(absoluteUrl)) {
+            return;
         }
 
         // Extract link metadata
@@ -135,7 +126,11 @@ export const getAndEnqueueLinkUrls = async (
         try {
             const linkHost = new URL(absoluteUrl).hostname;
             const baseHost = new URL(baseUrl || request.url).hostname;
-            if (linkHost !== baseHost) {
+            // Also check without www
+            const linkHostClean = linkHost.replace(/^www\./, '');
+            const baseHostClean = baseHost.replace(/^www\./, '');
+
+            if (linkHostClean !== baseHostClean) {
                 linkType = 'external';
                 isInternal = false;
             }
@@ -145,8 +140,9 @@ export const getAndEnqueueLinkUrls = async (
         }
 
         // Check if it's a resource/file link
-        const ext = absoluteUrl.split('.').pop()?.toLowerCase().split('?')[0] || '';
-        const resourceExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'zip', 'rar', 'mp3', 'mp4', 'jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'];
+        const pathname = new URL(absoluteUrl).pathname;
+        const ext = pathname.split('.').pop()?.toLowerCase() || '';
+        const resourceExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'zip', 'rar', 'mp3', 'mp4', 'jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'css', 'js'];
         if (resourceExts.includes(ext)) {
             linkType = 'resource';
         }
@@ -159,7 +155,7 @@ export const getAndEnqueueLinkUrls = async (
         });
 
         // Add to appropriate list
-        if (isInternal) {
+        if (isInternal && linkType !== 'resource') {
             internalLinks.push(absoluteUrl);
         }
 
@@ -169,8 +165,18 @@ export const getAndEnqueueLinkUrls = async (
         }
     });
 
-    // Only enqueue internal links for further crawling (within depth limit)
+    log.debug(`Extracted ${allLinks.length} links (${internalLinks.length} internal)`, {
+        url: request.url,
+        depth: nextDepth - 1,
+        willEnqueue: nextDepth <= maxDepth
+    });
+
+    // Enqueue internal links for further crawling (within depth limit)
     if (nextDepth <= maxDepth && internalLinks.length > 0) {
+        log.info(`Enqueueing ${internalLinks.length} internal links at depth ${nextDepth}`, {
+            url: request.url
+        });
+
         await enqueueLinks({
             urls: internalLinks,
             transformRequestFunction: (req) => {

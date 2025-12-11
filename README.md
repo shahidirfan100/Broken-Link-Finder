@@ -1,294 +1,209 @@
 # Broken Link Finder
 
-## Overview
+Find and fix broken links on any website. This tool crawls your pages, checks every link, and reports which ones are broken — helping you maintain SEO rankings and provide a better user experience.
 
-**Broken Link Finder** is a comprehensive SEO tool designed to help you identify, track, and fix broken links on your website. By crawling your web pages systematically, it detects non-functional links, anchor fragment issues, and redirect problems—all crucial for maintaining excellent user experience and search engine rankings.
+## What does Broken Link Finder do?
 
-With Broken Link Finder, you can:
-- Identify all broken links across your website automatically
-- Detect invalid anchor fragments and broken redirects
-- Receive detailed reports with actionable insights
-- Schedule regular checks to monitor link health continuously
-- Maintain your website's SEO performance and user satisfaction
+Broken Link Finder automatically scans your website to detect:
 
----
+- **404 errors** — Pages that no longer exist
+- **Server errors (5xx)** — Links to pages with server problems
+- **Timeout issues** — Links that take too long to respond
+- **Invalid anchors** — Fragment links (#section) that don't exist on the page
+- **External broken links** — Dead links pointing to other websites
 
-## Key Features
+## Why check for broken links?
 
-### Comprehensive Link Analysis
-- Crawl entire websites or specific sections
-- Check both internal and external links
-- Identify HTTP errors (404, 500, etc.) and timeout issues
-- Detect broken anchor fragments (#section links)
+Broken links hurt your website in multiple ways:
 
-### Flexible Crawling Options
-- Scan single or multiple domains
-- Crawl subdomains independently
-- Set custom crawl limits to manage costs
-- Control crawl concurrency to minimize server load
+1. **SEO Impact** — Search engines penalize sites with broken links
+2. **User Experience** — Visitors leave when they hit dead ends
+3. **Lost Revenue** — Broken product or checkout links cost sales
+4. **Credibility** — Broken links make your site look unmaintained
 
-### Email Notifications
-- Receive automated reports via email
-- Focus on broken links only or get complete reports
-- Schedule periodic checks automatically
+## Features
 
-### Detailed Reporting
-- View comprehensive link status summaries
-- Track link status codes and error messages
-- Analyze link referrers for quick fixes
-- Export results for further analysis
+- **Deep crawling** — Check links inside article pages, not just the homepage
+- **Configurable depth** — Control how deep the crawler goes (1-10 levels)
+- **Fast parallel checking** — Scan up to 50 pages simultaneously
+- **External link checking** — Verify links to other websites work
+- **Smart content detection** — Focuses on main content, skips navigation menus
+- **Email notifications** — Get reports sent directly to your inbox
+- **Detailed reports** — HTML and JSON reports with all findings
 
----
+## How to use
 
-## How It Works
+1. Click **Try for free** to open the actor
+2. Enter your **Website URL** (e.g., `https://example.com/blog`)
+3. Set **Crawl depth** to control how deep to check (default: 3)
+4. Set **Max pages** to limit the crawl size (default: 100)
+5. Click **Start** and wait for results
+6. Download the report or view online
 
-Broken Link Finder uses an intelligent crawling approach to thoroughly analyze your website:
+## Input options
 
-1. **Initialization**: The crawler starts at your specified base URL
-2. **Page Crawling**: It systematically crawls all linked pages within your domain
-3. **Link Analysis**: On each page, it checks every link and validates anchor fragments
-4. **Status Tracking**: It records HTTP status codes, error messages, and response times
-5. **Report Generation**: Results are compiled into organized, actionable reports
+| Field | Description | Default |
+|-------|-------------|---------|
+| **Website URL** | The starting URL to crawl | Required |
+| **Max pages** | Maximum pages to crawl | 100 |
+| **Crawl depth** | How many levels deep to check links | 3 |
+| **Max concurrency** | Pages to check in parallel | 10 |
+| **Check external links** | Also verify links to other sites | Yes |
+| **Save only broken links** | Only save broken links to dataset | Yes |
+| **Crawl subdomains** | Include subdomains in the crawl | No |
+| **Notification emails** | Email addresses for reports | None |
 
-### Example Crawl Pattern
+## Input example
 
-When you start crawling from `https://www.example.com/products/`:
-
-```
-https://www.example.com/products/
-https://www.example.com/products/item-1
-https://www.example.com/products/item-1/reviews
-https://www.example.com/products/item-2
-https://www.example.com/pricing
-https://www.example.com/contact
-```
-
-For each page with a link like `https://www.example.com/docs/guide#installation`, the crawler will:
-- Load the target page (`https://www.example.com/docs/guide`)
-- Verify the page loads successfully
-- Check if the page contains the anchor section (`#installation`)
-- Report any issues found
-
----
-
-## Getting Started
-
-### Quick Start
-
-1. **Click** "Try for free" to launch the actor
-2. **Enter** your website URL (e.g., `https://www.example.com`)
-3. **Configure** your preferences:
-   - Maximum pages to check
-   - Email recipients for notifications
-   - Whether to save only broken links
-4. **Run** and monitor the progress
-5. **Review** results and export for action
-
-### Input Configuration
-
-#### Website URL (Required)
-The starting URL for your broken link audit. The crawler will follow links from this page to other pages on your domain.
-
-**Example:** `https://www.example.com/blog`
-
-#### Max Pages (Optional)
-The maximum number of pages to crawl. Leave empty for unlimited crawling.
-
-**Default:** Unlimited  
-**Use case:** Control costs by limiting crawls on large websites
-
-#### Crawl Subdomains (Optional)
-When enabled, the crawler will follow links to subdomains of your base domain.
-
-**Default:** `false`
-
-**Example:** For `example.com`, it would also crawl `blog.example.com` and `api.example.com`
-
-#### Notification Emails (Optional)
-Email addresses to receive the broken links report after crawling completes.
-
-**Format:** Comma-separated list  
-**Example:** `admin@example.com, seo@example.com`
-
-#### Save Only Broken Links (Optional)
-When enabled, the report contains only broken links. When disabled, includes all links found.
-
-**Default:** `false`  
-**Note:** Reports with all links are not CSV-friendly but provide complete data
-
-#### Max Concurrency (Optional)
-The maximum number of pages to crawl simultaneously. Reduce to minimize server load on target websites.
-
-**Default:** Automatic  
-**Range:** 1-50
-
-#### Proxy Configuration (Optional)
-Configure proxy settings for crawling behind firewalls or for IP rotation.
-
----
-
-## Output Data
-
-### Dataset Record Example
+Check a blog for broken links, going 3 levels deep:
 
 ```json
 {
-  "url": "https://www.example.com/products/item-1",
-  "httpStatus": 404,
-  "errorMessage": "Not Found",
-  "title": "Product Not Found",
-  "referrer": "https://www.example.com/",
-  "anchors": ["section1", "section2"],
-  "isBaseWebsite": false
+    "baseUrl": "https://example.com/blog",
+    "maxPages": 500,
+    "maxCrawlDepth": 3,
+    "maxConcurrency": 10,
+    "checkExternalLinks": true,
+    "saveOnlyBrokenLinks": true
 }
 ```
 
-### Report Interpretation
+Check an entire e-commerce site including subdomains:
 
-- **HTTP Status 200**: Link is working correctly
-- **HTTP Status 301/302**: Link redirects (usually acceptable)
-- **HTTP Status 404**: Page not found (broken link)
-- **HTTP Status 500+**: Server error (broken link)
-- **Timeout**: Page didn't respond (broken link)
-- **Invalid Anchors**: Fragment exists but anchor not found on page
+```json
+{
+    "baseUrl": "https://shop.example.com",
+    "maxPages": 2000,
+    "maxCrawlDepth": 4,
+    "crawlSubdomains": true,
+    "notificationEmails": ["webmaster@example.com"]
+}
+```
 
----
+## Output
 
-## Use Cases
+Results are saved in two formats:
 
-### E-commerce Sites
-Monitor product links and prevent customers from encountering broken pages that hurt sales and conversion rates.
+### Dataset (structured data)
 
-### Content-Heavy Websites
-Maintain integrity across hundreds of blog posts and pages with regular automated checks.
+Each broken link is saved as a record:
 
-### Multi-domain Properties
-Check internal links across multiple domains and subdomains to ensure consistent user experience.
+```json
+{
+    "sourceUrl": "https://example.com/blog/old-post",
+    "sourceTitle": "My Old Blog Post",
+    "targetUrl": "https://example.com/deleted-page",
+    "linkText": "Click here",
+    "linkType": "internal",
+    "httpStatus": 404,
+    "status": "Not Found",
+    "isBroken": true,
+    "severity": "high",
+    "issueType": "404_not_found",
+    "checkedAt": "2024-01-15T10:30:00Z"
+}
+```
 
-### SEO Management
-Identify and fix broken links before search engines crawl them, protecting your rankings and authority.
+### Key-Value Store
 
-### Migration Projects
-Verify all old URLs redirect properly to new locations after website redesigns or platform migrations.
+- **OUTPUT** — JSON summary with statistics and all broken links
+- **OUTPUT.html** — Visual HTML report for easy viewing
 
----
+## Understanding the results
 
-## Pricing & Cost Estimation
+| Status | HTTP Code | Severity | Meaning |
+|--------|-----------|----------|---------|
+| OK | 200 | None | Link works correctly |
+| Redirect | 301/302 | Low | Link redirects (usually fine) |
+| Not Found | 404 | High | Page doesn't exist |
+| Forbidden | 403 | Medium | Access denied |
+| Server Error | 500+ | High | Server problem |
+| Timeout | — | High | Page didn't respond |
 
-Broken Link Finder is available as an Apify actor. Costs depend on the number of pages crawled and resources used.
+## How crawl depth works
 
-**Typical costs:**
-- Small site (100 pages): ~$0.10-0.25
-- Medium site (1,000 pages): ~$1.00-2.50
-- Large site (10,000 pages): ~$10.00-25.00
+The **Crawl depth** setting controls how deep the crawler goes:
 
-For detailed pricing information and current rates, visit the [Apify pricing page](https://apify.com/pricing/actors).
+| Depth | What gets checked |
+|-------|-------------------|
+| 1 | Only links on the starting page |
+| 2 | Starting page + one level of linked pages |
+| 3 | Two levels deep (recommended for most sites) |
+| 4+ | Deeper crawling for large content sites |
 
----
+**Example with depth 3:**
+1. Crawls category page `/blog/tutorials`
+2. Finds 20 article links, crawls each article
+3. Checks all links inside each article (images, downloads, related posts)
 
-## Advanced Configuration
+## Use cases
 
-### Subdomain Crawling Strategy
-Enable subdomain crawling when you want to audit all properties under your main domain. This is useful for multi-tenant applications or when you own multiple branded subdomains.
+### Blog and content sites
+Find broken links in old articles that reference deleted pages or outdated external resources.
 
-### Concurrency Optimization
-If you receive rate-limit errors, reduce the concurrency setting. This allows the crawler to respect target server load limits and avoid temporary IP blocks.
+### E-commerce stores
+Detect broken product links, missing images, and dead checkout paths before customers do.
 
-### Email Scheduling
-Use Apify's scheduling feature to run Broken Link Finder periodically (daily, weekly, or monthly) and automatically receive reports in your inbox.
+### Documentation sites
+Ensure all internal links between docs work and external API references are valid.
 
----
+### Site migrations
+Verify all old URLs properly redirect after moving to a new domain or platform.
+
+### Regular SEO audits
+Schedule weekly or monthly checks to catch broken links before search engines do.
+
+## Cost estimation
+
+Costs depend on pages crawled and resources used:
+
+| Site Size | Pages | Estimated Cost |
+|-----------|-------|----------------|
+| Small | 100 | ~$0.10-0.25 |
+| Medium | 1,000 | ~$1.00-2.50 |
+| Large | 10,000 | ~$10.00-25.00 |
+
+## Tips for best results
+
+1. **Start small** — Test with 50-100 pages first to verify settings
+2. **Use appropriate depth** — Depth 3 works for most sites
+3. **Lower concurrency** — Reduce to 5 if you get rate-limited
+4. **Schedule regular checks** — Use Apify schedules for weekly monitoring
+5. **Check external links** — Many broken links point to other sites
+
+## Integrations
+
+Export results to:
+- Google Sheets
+- Slack notifications
+- Email reports
+- Webhooks for custom integrations
+- Any tool via Apify API
 
 ## FAQ
 
-**Q: Will crawling my site cause performance issues?**  
-A: The crawler respects server response times and includes built-in delays. You can also adjust concurrency settings to further reduce load.
+**How long does a crawl take?**
 
-**Q: How long does a typical crawl take?**  
-A: Depends on site size and concurrency. A 100-page site typically completes in 5-15 minutes.
+A 100-page site typically completes in 2-5 minutes. Larger sites take proportionally longer.
 
-**Q: Can I crawl external websites?**  
-A: You can audit external websites to find links to your site, but monitor their terms of service regarding automated access.
+**Will this slow down my website?**
 
-**Q: What file formats do results support?**  
-A: Results are available as JSON, CSV, and can be emailed as HTML reports.
+The crawler includes rate limiting and respects server responses. Reduce concurrency if needed.
 
-**Q: Can I export results?**  
-A: Yes, Apify provides export options for JSON, CSV, and other formats through the platform interface.
+**Can I check competitor websites?**
 
----
+Yes, but respect their terms of service and use reasonable crawl limits.
 
-## Support & Documentation
+**What's the difference between internal and external links?**
 
-- [Apify Platform Documentation](https://docs.apify.com/)
-- [Community Support](https://apify.com/community)
-- [Report Issues](https://apify.com/support)
+Internal links point to pages on your site. External links point to other websites.
 
-For more information about web scraping best practices and SEO optimization, visit the [Apify Blog](https://blog.apify.com/).
- 
-**Crawl subdomains**
-If set to `true`, the crawler will search broken links not only on the main page but also in deeper subdomains.
+**How do I fix broken links?**
 
-### Input example
-Here's an input example for checking the Apify Blog for bad links. We've enabled the crawler to check subdomains as well but limited the inspection to 1,000 pages. 
-```json
-    {
-      "baseUrl": "https://blog.apify.com",
-      "maxPages": 1000,
-      "notificationEmails": [
-        "admin@example.com"
-      ],
-      "saveOnlyBrokenLinks": true,
-      "crawlSubdomains": true
-    }
-```
- 
-## Output
-Once the links checker finishes the crawl, it will save a report of the broken links into your **key-value store**. You will find reports in two formats there:
+Update the link to the correct URL, set up a redirect, or remove the link entirely.
 
--   `OUTPUT`  contains a machine-readable JSON report
--   `OUTPUT.html` contains an easy-to-read HTML report 
+## Support
 
-### Output example as JSON
-Here's an example of dataset of a successful Broken Links Checker run. The error message is included in the report and can be found at the bottom of the example.
-```json
-[
-  {
-    "url": "https://blog.apify.com",
-    "title": "Apify Blog: Web scraping and automation stories",
-    "links": [
-      {
-        "url": "https://apify.com/",
-        "normalizedUrl": "https://apify.com",
-        "httpStatus": 200,
-        "fragment": "",
-        "fragmentValid": true,
-        "crawled": true
-      },
-      {
-        "url": "https://apify.com/about",
-        "normalizedUrl": "https://apify.com/about",
-        "httpStatus": 200,
-        "fragment": "",
-        "fragmentValid": true,
-        "crawled": true
-      },
-      {
-        "url": "https://apify.com/jobs",
-        "normalizedUrl": "https://apify.com/jobs",
-        "httpStatus": 200,
-        "fragment": "",
-        "fragmentValid": true,
-        "crawled": true
-      },
-      {
-        "url": "https://apify.com/web-scraping",
-        "normalizedUrl": "https://apify.com/web-scraping",
-        "httpStatus": null,
-        "errorMessage": "Error: Navigation timed out after 120 seconds.\n    at handleRequestTimeout (/home/myuser/node_modules/apify/build/crawlers/crawler_utils.js:19:11)\n    at PuppeteerCrawler._handleNavigationTimeout (/home/myuser/node_modules/apify/build/crawlers/browser_crawler.js:418:54)\n    at PuppeteerCrawler._handleNavigation (/home/myuser/node_modules/apify/build/crawlers/browser_crawler.js:401:18)\n    at async PuppeteerCrawler._handleRequestFunction (/home/myuser/node_modules/apify/build/crawlers/browser_crawler.js:343:13)\n    at async wrap (/home/myuser/node_modules/@apify/timeout/index.js:73:27)",
-        "fragment": "",
-        "fragmentValid": true,
-        "crawled": true
-      },
-...
-```
+- [Apify Documentation](https://docs.apify.com/)
+- [Community Forum](https://discord.gg/apify)
+- [Contact Support](https://apify.com/contact)
