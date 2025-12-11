@@ -17,6 +17,7 @@ export const getPageRecord = async ({ request, $, response }) => {
         httpStatus: response?.statusCode,
         title: $('title').text().trim() || $('h1').first().text().trim() || 'No title',
         linkUrls: null,
+        linkData: null, // Enhanced link data with text and attributes
         anchors: getAnchors($),
         referrer,
     };
@@ -25,11 +26,61 @@ export const getPageRecord = async ({ request, $, response }) => {
 };
 
 /**
- * Enqueue all links from the page and return their URLs
+ * Enqueue all links from the page and return their URLs with metadata
  * @param {import('crawlee').CheerioCrawlingContext} context
- * @returns {Promise<string[]>} Array of link URLs
+ * @param {string} baseUrl - The base URL to determine internal/external links
+ * @returns {Promise<object>} Object with linkUrls array and linkData map
  */
-export const getAndEnqueueLinkUrls = async ({ request, enqueueLinks }) => {
+export const getAndEnqueueLinkUrls = async ({ request, enqueueLinks, $ }, baseUrl) => {
+    // Extract link data (text, attributes) before enqueueing
+    const linkData = new Map();
+
+    $('a[href]').each((_, elem) => {
+        const $link = $(elem);
+        const href = $link.attr('href');
+        if (!href) return;
+
+        // Get absolute URL
+        let absoluteUrl = href;
+        try {
+            absoluteUrl = new URL(href, request.url).href;
+        } catch {
+            // Invalid URL, skip
+            return;
+        }
+
+        // Extract link metadata
+        const linkText = $link.text().trim().substring(0, 100) || $link.attr('title') || '';
+        const isImage = $link.find('img').length > 0;
+        const imgAlt = isImage ? $link.find('img').first().attr('alt') || '' : '';
+
+        // Determine link type
+        let linkType = 'internal';
+        try {
+            const linkHost = new URL(absoluteUrl).hostname;
+            const baseHost = new URL(baseUrl || request.url).hostname;
+            if (linkHost !== baseHost) {
+                linkType = 'external';
+            }
+        } catch {
+            linkType = 'unknown';
+        }
+
+        // Check if it's a resource link
+        const ext = absoluteUrl.split('.').pop()?.toLowerCase() || '';
+        const resourceExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'zip', 'rar', 'mp3', 'mp4', 'jpg', 'jpeg', 'png', 'gif'];
+        if (resourceExts.includes(ext)) {
+            linkType = 'resource';
+        }
+
+        linkData.set(absoluteUrl, {
+            linkText: linkText || (isImage ? `[Image: ${imgAlt}]` : '[No text]'),
+            linkType,
+            isImage,
+        });
+    });
+
+    // Enqueue links
     const result = await enqueueLinks({
         selector: 'a',
         transformRequestFunction: (req) => {
@@ -38,7 +89,9 @@ export const getAndEnqueueLinkUrls = async ({ request, enqueueLinks }) => {
         },
     });
 
-    return result.processedRequests.map((req) => req.uniqueKey);
+    const linkUrls = result.processedRequests.map((req) => req.uniqueKey);
+
+    return { linkUrls, linkData };
 };
 
 /**

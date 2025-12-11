@@ -8,7 +8,6 @@ import {
     getResults,
     saveResults,
     getBrokenLinks,
-    saveRecordToDataset,
     getBaseUrlRequest,
     hasBaseDomain,
     isErrorHttpStatus,
@@ -18,6 +17,9 @@ import { MAX_REQUEST_RETRIES } from './consts.js';
 
 // Initialize the Apify Actor
 await Actor.init();
+
+// Track start time for duration calculation
+const startTime = Date.now();
 
 // Get input configuration
 const input = await Actor.getInput() ?? {};
@@ -42,7 +44,7 @@ log.info('Starting Broken Link Finder', { baseUrl, maxPages, crawlSubdomains });
 const requestQueue = await Actor.openRequestQueue();
 await requestQueue.addRequest(getBaseUrlRequest(baseUrl));
 
-// Persistent storage for records
+// Persistent storage for records (internal use, not pushed to dataset)
 const records = await Actor.getValue('RECORDS') ?? [];
 Actor.on('persistState', async () => {
     await Actor.setValue('RECORDS', records);
@@ -64,7 +66,7 @@ const crawler = new CheerioCrawler({
     requestHandlerTimeoutSecs: 30,
     navigationTimeoutSecs: 20,
 
-    // Use got-scraping for efficient HTTP requests
+    // Use session pool for efficient HTTP requests
     useSessionPool: true,
     persistCookiesPerSession: true,
 
@@ -85,11 +87,13 @@ const crawler = new CheerioCrawler({
             // Determine if we should enqueue links from this page
             const crawlCurrentSubdomain = crawlSubdomains && hasBaseDomain(baseUrl, url);
             if (record.isBaseWebsite || crawlCurrentSubdomain) {
-                record.linkUrls = await getAndEnqueueLinkUrls(context);
+                // Extract links with metadata (text, type)
+                const { linkUrls, linkData } = await getAndEnqueueLinkUrls(context, baseUrl);
+                record.linkUrls = linkUrls;
+                record.linkData = linkData;
             }
 
-            // Save record
-            await saveRecordToDataset(record, saveOnlyBrokenLinks);
+            // Store record internally (dataset is populated during results processing)
             records.push(record);
 
             log.debug('Page processed successfully', { url, linksFound: record.linkUrls?.length ?? 0 });
@@ -104,7 +108,6 @@ const crawler = new CheerioCrawler({
                 referrer: context.request.userData?.referrer,
             };
 
-            await Actor.pushData(errorRecord);
             records.push(errorRecord);
         }
     },
@@ -128,7 +131,6 @@ const crawler = new CheerioCrawler({
             referrer: request.userData?.referrer,
         };
 
-        await Actor.pushData(record);
         records.push(record);
     },
 });
@@ -138,12 +140,16 @@ log.info(`Starting crawl of ${baseUrl}`);
 await crawler.run();
 log.info('Crawling finished, processing results...');
 
-// Process and save results
-const results = await getResults(baseUrl, records);
-await saveResults(results, baseUrl);
+// Process results and push clean flat records to dataset
+const results = await getResults(baseUrl, records, saveOnlyBrokenLinks);
+
+// Get broken links for notification and summary
+const brokenLinks = getBrokenLinks(results);
+
+// Save summary to key-value store
+await saveResults(results, baseUrl, brokenLinks, startTime);
 
 // Send email notifications if broken links found
-const brokenLinks = getBrokenLinks(results);
 if (brokenLinks.length > 0 && notificationEmails?.length > 0) {
     log.info(`Found ${brokenLinks.length} broken links, sending notifications...`);
     await sendEmailNotification(results, baseUrl, notificationEmails);

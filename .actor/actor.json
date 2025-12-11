@@ -6,5 +6,92 @@
 	"version": "2.0.0",
 	"buildTag": "latest",
 	"input": "../input_schema.json",
-	"dockerfile": "../Dockerfile"
+	"dockerfile": "../Dockerfile",
+	"storages": {
+		"dataset": {
+			"actorSpecification": 1,
+			"title": "Broken Links Report",
+			"description": "Dataset containing all crawled pages and their link status",
+			"schema": "./dataset_schema.json",
+			"views": {
+				"brokenLinks": {
+					"title": "Broken Links",
+					"description": "View showing only broken links",
+					"transformation": {
+						"fields": [
+							"sourceUrl",
+							"targetUrl",
+							"httpStatus",
+							"statusText",
+							"isBroken",
+							"errorMessage"
+						],
+						"filter": "item.isBroken === true"
+					},
+					"display": {
+						"component": "table",
+						"properties": {
+							"sourceUrl": {
+								"label": "Source Page",
+								"format": "link"
+							},
+							"targetUrl": {
+								"label": "Broken Link",
+								"format": "link"
+							},
+							"httpStatus": {
+								"label": "HTTP Status"
+							},
+							"statusText": {
+								"label": "Status"
+							},
+							"errorMessage": {
+								"label": "Error"
+							}
+						}
+					}
+				},
+				"allLinks": {
+					"title": "All Links",
+					"description": "View showing all crawled links",
+					"transformation": {
+						"fields": [
+							"sourceUrl",
+							"targetUrl",
+							"httpStatus",
+							"statusText",
+							"isBroken"
+						]
+					},
+					"display": {
+						"component": "table",
+						"properties": {
+							"sourceUrl": {
+								"label": "Source Page",
+								"format": "link"
+							},
+							"targetUrl": {
+								"label": "Target Link",
+								"format": "link"
+							},
+							"httpStatus": {
+								"label": "HTTP Status"
+							},
+							"statusText": {
+								"label": "Status"
+							},
+							"isBroken": {
+								"label": "Broken?"
+							}
+						}
+					}
+				}
+			}
+		},
+		"keyValueStore": {
+			"title": "Output Store",
+			"description": "Key-value store containing crawl summary and HTML report",
+			"schema": "./output_schema.json"
+		}
+	}
 }

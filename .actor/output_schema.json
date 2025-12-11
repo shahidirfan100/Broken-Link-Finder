@@ -1,0 +1,66 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Broken Link Finder Output Schema",
+    "description": "Schema for the key-value store OUTPUT of the Broken Link Finder actor",
+    "type": "object",
+    "properties": {
+        "summary": {
+            "type": "object",
+            "description": "Summary statistics of the crawl",
+            "properties": {
+                "baseUrl": {
+                    "type": "string",
+                    "description": "The base URL that was crawled"
+                },
+                "totalPagesChecked": {
+                    "type": "integer",
+                    "description": "Total number of pages crawled"
+                },
+                "totalLinksChecked": {
+                    "type": "integer",
+                    "description": "Total number of links checked"
+                },
+                "brokenLinksCount": {
+                    "type": "integer",
+                    "description": "Number of broken links found"
+                },
+                "crawlDuration": {
+                    "type": "string",
+                    "description": "Total time taken for the crawl"
+                },
+                "completedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO timestamp when crawl completed"
+                }
+            }
+        },
+        "brokenLinks": {
+            "type": "array",
+            "description": "List of all broken links found",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "sourceUrl": {
+                        "type": "string"
+                    },
+                    "targetUrl": {
+                        "type": "string"
+                    },
+                    "httpStatus": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "errorMessage": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}
