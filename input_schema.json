@@ -6,50 +6,67 @@
     "baseUrl": {
       "title": "Website URL",
       "type": "string",
-      "description": "The URL to crawl. Only pages in the sub-directory will be probed.",
+      "description": "The URL to start crawling from. Can be a homepage, category page, or specific article.",
       "prefill": "https://www.example.com/",
       "editor": "textfield",
       "maxLength": 500
     },
     "maxPages": {
-      "title": "Max pages",
+      "title": "Max pages to crawl",
       "type": "integer",
-      "description": "The maximum number of pages that will be crawled. If empty, the number is not limited.",
-      "prefill": 1000,
-      "default": 1000
+      "description": "Maximum number of pages to crawl. Set lower for faster runs.",
+      "prefill": 100,
+      "default": 100,
+      "minimum": 1,
+      "maximum": 10000
+    },
+    "maxCrawlDepth": {
+      "title": "Crawl depth",
+      "type": "integer",
+      "description": "How deep to crawl. 1 = only starting page, 2 = starting page + linked pages, 3 = go deeper into articles, etc.",
+      "prefill": 3,
+      "default": 3,
+      "minimum": 1,
+      "maximum": 10
     },
     "maxConcurrency": {
       "title": "Max concurrency",
       "type": "integer",
-      "description": "The maximum number of pages to crawl in parallel. Higher values = faster but more load on target server.",
+      "description": "Number of pages to crawl in parallel. Higher = faster but more server load.",
       "prefill": 10,
       "default": 10,
       "minimum": 1,
       "maximum": 50
     },
+    "checkExternalLinks": {
+      "title": "Check external links",
+      "type": "boolean",
+      "description": "If true, also check if external links (to other websites) are broken.",
+      "default": true
+    },
     "saveOnlyBrokenLinks": {
       "title": "Save only broken links",
       "type": "boolean",
-      "description": "If true, only broken links will be saved to the dataset. If false, all links are saved.",
+      "description": "If true, only broken links are saved to dataset. If false, all links are saved.",
       "default": true
     },
     "crawlSubdomains": {
       "title": "Crawl subdomains",
       "type": "boolean",
-      "description": "If true, the actor will also crawl subdomains of the base URL.",
+      "description": "If true, also crawl subdomains (e.g., blog.example.com when crawling example.com).",
       "default": false
     },
     "notificationEmails": {
       "title": "Notification emails",
       "type": "array",
-      "description": "Add email addresses to receive notifications when broken links are found.",
+      "description": "Email addresses to notify when broken links are found.",
       "editor": "stringList",
       "prefill": []
     },
     "proxyConfiguration": {
       "title": "Proxy configuration",
       "type": "object",
-      "description": "Proxy settings for avoiding IP blocks. Recommended for large crawls.",
+      "description": "Proxy settings. Recommended for large crawls to avoid IP blocks.",
       "prefill": {
         "useApifyProxy": true
       },

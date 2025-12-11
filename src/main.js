@@ -25,10 +25,12 @@ const startTime = Date.now();
 const input = await Actor.getInput() ?? {};
 const {
     maxConcurrency = 10,
-    maxPages,
+    maxPages = 1000,
+    maxCrawlDepth = 3,
     notificationEmails,
     saveOnlyBrokenLinks = true,
     crawlSubdomains = false,
+    checkExternalLinks = true,
     proxyConfiguration,
 } = input;
 
@@ -38,11 +40,24 @@ if (!baseUrl) {
     throw new Error('Invalid baseUrl provided. Please provide a valid URL.');
 }
 
-log.info('Starting Broken Link Finder', { baseUrl, maxPages, maxConcurrency, crawlSubdomains });
+log.info('Starting Broken Link Finder', {
+    baseUrl,
+    maxPages,
+    maxConcurrency,
+    maxCrawlDepth,
+    checkExternalLinks,
+    crawlSubdomains
+});
 
-// Setup request queue with initial URL
+// Setup request queue with initial URL (depth 0)
 const requestQueue = await Actor.openRequestQueue();
-await requestQueue.addRequest(getBaseUrlRequest(baseUrl));
+await requestQueue.addRequest({
+    ...getBaseUrlRequest(baseUrl),
+    userData: {
+        ...getBaseUrlRequest(baseUrl).userData,
+        depth: 0
+    }
+});
 
 // Persistent storage for records (internal use, not pushed to dataset)
 const records = await Actor.getValue('RECORDS') ?? [];
@@ -71,8 +86,10 @@ const crawler = new CheerioCrawler({
     persistCookiesPerSession: true,
 
     async requestHandler(context) {
-        let { request: { url } } = context;
-        log.info('Crawling page...', { url });
+        let { request: { url, userData } } = context;
+        const currentDepth = userData?.depth ?? 0;
+
+        log.info('Crawling page...', { url, depth: currentDepth });
 
         try {
             // Minimal rate limiting
@@ -84,13 +101,29 @@ const crawler = new CheerioCrawler({
             // Extract page information
             const record = await getPageRecord(context);
 
-            // Determine if we should enqueue links from this page
-            const crawlCurrentSubdomain = crawlSubdomains && hasBaseDomain(baseUrl, url);
-            if (record.isBaseWebsite || crawlCurrentSubdomain) {
+            // Check if we're within the base domain
+            const isWithinBaseDomain = hasBaseDomain(baseUrl, url);
+            const crawlCurrentSubdomain = crawlSubdomains && isWithinBaseDomain;
+
+            // Extract and check links from ALL pages within depth limit
+            // This ensures we check links inside article pages, not just the listing page
+            if ((record.isBaseWebsite || isWithinBaseDomain || crawlCurrentSubdomain) && currentDepth < maxCrawlDepth) {
                 // Extract links with metadata (text, type)
-                const { linkUrls, linkData } = await getAndEnqueueLinkUrls(context, baseUrl);
+                const { linkUrls, linkData } = await getAndEnqueueLinkUrls(
+                    context,
+                    baseUrl,
+                    currentDepth + 1,
+                    maxCrawlDepth,
+                    checkExternalLinks
+                );
                 record.linkUrls = linkUrls;
                 record.linkData = linkData;
+
+                log.debug('Links extracted', {
+                    url,
+                    depth: currentDepth,
+                    linksFound: linkUrls.length
+                });
             }
 
             // Store record internally (dataset is populated during results processing)

@@ -1,9 +1,36 @@
 import { BASE_URL_LABEL } from './consts.js';
 import { normalizeUrl } from './tools.js';
 
-// CSS selector to exclude navigation, sidebar, footer elements
-const CONTENT_LINK_SELECTOR = 'main a[href], article a[href], .content a[href], #content a[href], .post a[href], .entry a[href], .page-content a[href], section:not(nav):not(footer) a[href]';
-const EXCLUDED_AREAS = ['nav', 'header', 'footer', '.sidebar', '#sidebar', '.menu', '#menu', '.navigation', '#navigation', '.nav', '#nav', '.footer', '#footer', '.header', '#header'];
+// CSS selector to target main content areas
+const CONTENT_SELECTORS = [
+    'main a[href]',
+    'article a[href]',
+    '.content a[href]',
+    '#content a[href]',
+    '.post a[href]',
+    '.entry a[href]',
+    '.page-content a[href]',
+    '.post-content a[href]',
+    '.article-content a[href]',
+    '.entry-content a[href]',
+];
+
+// Areas to exclude from link extraction
+const EXCLUDED_SELECTORS = [
+    'nav', 'header', 'footer',
+    '.sidebar', '#sidebar',
+    '.menu', '#menu',
+    '.navigation', '#navigation',
+    '.nav', '#nav',
+    '.footer', '#footer',
+    '.header', '#header',
+    '.widget', '.widgets',
+    '.breadcrumb', '.breadcrumbs',
+    '.pagination',
+    '.social', '.share',
+    '.comments', '#comments',
+    '.related-posts',
+];
 
 /**
  * Analyses the current page and creates the corresponding info record.
@@ -11,7 +38,7 @@ const EXCLUDED_AREAS = ['nav', 'header', 'footer', '.sidebar', '#sidebar', '.men
  * @returns {Promise<object>} page record
  */
 export const getPageRecord = async ({ request, $, response }) => {
-    const { userData: { label, referrer } } = request;
+    const { userData: { label, referrer, depth = 0 } } = request;
 
     const url = normalizeUrl(request.url);
 
@@ -24,6 +51,7 @@ export const getPageRecord = async ({ request, $, response }) => {
         linkData: null,
         anchors: getAnchors($),
         referrer,
+        depth,
     };
 
     return record;
@@ -33,7 +61,7 @@ export const getPageRecord = async ({ request, $, response }) => {
  * Check if an element is inside an excluded area (nav, sidebar, footer, etc.)
  */
 const isInExcludedArea = ($elem, $) => {
-    for (const selector of EXCLUDED_AREAS) {
+    for (const selector of EXCLUDED_SELECTORS) {
         if ($elem.closest(selector).length > 0) {
             return true;
         }
@@ -42,20 +70,31 @@ const isInExcludedArea = ($elem, $) => {
 };
 
 /**
- * Enqueue all links from the main page content (excluding nav, sidebar, footer)
- * Checks both internal AND external links
+ * Enqueue all links from the main page content
  * @param {import('crawlee').CheerioCrawlingContext} context
  * @param {string} baseUrl - The base URL to determine internal/external links
+ * @param {number} nextDepth - Depth for enqueued requests
+ * @param {number} maxDepth - Maximum crawl depth
+ * @param {boolean} checkExternalLinks - Whether to check external links
  * @returns {Promise<object>} Object with linkUrls array and linkData map
  */
-export const getAndEnqueueLinkUrls = async ({ request, enqueueLinks, $ }, baseUrl) => {
+export const getAndEnqueueLinkUrls = async (
+    { request, enqueueLinks, $ },
+    baseUrl,
+    nextDepth = 1,
+    maxDepth = 3,
+    checkExternalLinks = true
+) => {
     const linkData = new Map();
-    const contentLinks = new Set();
+    const allLinks = [];
+    const internalLinks = [];
 
-    // First try to find links in main content areas
-    let $links = $(CONTENT_LINK_SELECTOR);
+    // Try content selectors first, fall back to body
+    let $links;
+    const contentSelector = CONTENT_SELECTORS.join(', ');
+    $links = $(contentSelector);
 
-    // If no main content found, fall back to body but exclude nav/sidebar/footer
+    // If no content areas found, check all body links but exclude nav/footer
     if ($links.length === 0) {
         $links = $('body a[href]');
     }
@@ -90,16 +129,19 @@ export const getAndEnqueueLinkUrls = async ({ request, enqueueLinks, $ }, baseUr
         const isImage = $link.find('img').length > 0;
         const imgAlt = isImage ? $link.find('img').first().attr('alt') || '' : '';
 
-        // Determine link type (internal, external, resource)
+        // Determine link type
         let linkType = 'internal';
+        let isInternal = true;
         try {
             const linkHost = new URL(absoluteUrl).hostname;
             const baseHost = new URL(baseUrl || request.url).hostname;
             if (linkHost !== baseHost) {
                 linkType = 'external';
+                isInternal = false;
             }
         } catch {
             linkType = 'unknown';
+            isInternal = false;
         }
 
         // Check if it's a resource/file link
@@ -116,34 +158,33 @@ export const getAndEnqueueLinkUrls = async ({ request, enqueueLinks, $ }, baseUr
             isImage,
         });
 
-        contentLinks.add(absoluteUrl);
+        // Add to appropriate list
+        if (isInternal) {
+            internalLinks.push(absoluteUrl);
+        }
+
+        // Add all links for checking (including external if enabled)
+        if (isInternal || checkExternalLinks) {
+            allLinks.push(absoluteUrl);
+        }
     });
 
-    // Enqueue only internal links for crawling (external will be checked but not crawled)
-    const result = await enqueueLinks({
-        selector: CONTENT_LINK_SELECTOR.split(', ').length > 0 ? CONTENT_LINK_SELECTOR : 'main a, article a, section a',
-        transformRequestFunction: (req) => {
-            // Skip external links for enqueueing (but we still check them)
-            try {
-                const linkHost = new URL(req.url).hostname;
-                const baseHost = new URL(baseUrl || request.url).hostname;
-                if (linkHost !== baseHost) {
-                    return false; // Don't enqueue external links
-                }
-            } catch {
-                return false;
-            }
+    // Only enqueue internal links for further crawling (within depth limit)
+    if (nextDepth <= maxDepth && internalLinks.length > 0) {
+        await enqueueLinks({
+            urls: internalLinks,
+            transformRequestFunction: (req) => {
+                req.userData = {
+                    ...req.userData,
+                    referrer: request.url,
+                    depth: nextDepth,
+                };
+                return req;
+            },
+        });
+    }
 
-            // Skip if in excluded area
-            req.userData.referrer = request.url;
-            return req;
-        },
-    });
-
-    // Return all content links (both internal and external) for checking
-    const linkUrls = [...contentLinks];
-
-    return { linkUrls, linkData };
+    return { linkUrls: allLinks, linkData };
 };
 
 /**
