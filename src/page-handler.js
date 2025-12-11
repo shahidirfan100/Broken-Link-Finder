@@ -1,19 +1,10 @@
-import _ from 'underscore';
-
 import { BASE_URL_LABEL } from './consts.js';
 import { normalizeUrl } from './tools.js';
 
 /**
  * Analyses the current page and creates the corresponding info record.
- * @param {any} context 
- * @returns {Promise<{
- *  url: string,
- *  isBaseWebsite: boolean,
- *  httpStatus: any,
- *  title: any,
- *  linkUrls: any,
- *  anchors: any[],
- * }>} page record
+ * @param {import('crawlee').CheerioCrawlingContext} context
+ * @returns {Promise<object>} page record
  */
 export const getPageRecord = async ({ request, $, response }) => {
     const { userData: { label, referrer } } = request;
@@ -22,63 +13,54 @@ export const getPageRecord = async ({ request, $, response }) => {
 
     const record = {
         url,
-        isBaseWebsite: false,
+        isBaseWebsite: label === BASE_URL_LABEL,
         httpStatus: response?.statusCode,
-        title: $('title').text() || $('h1').first().text() || 'No title',
+        title: $('title').text().trim() || $('h1').first().text().trim() || 'No title',
         linkUrls: null,
-        anchors: await getAnchors($),
+        anchors: getAnchors($),
         referrer,
     };
-
-    /* if (response.status() !== 200) {
-        log.info('ALERT');
-        console.dir(request);
-        console.dir(record);
-        console.dir(response);
-    } */
-
-    if (label === BASE_URL_LABEL) {
-        record.isBaseWebsite = true;
-    }
 
     return record;
 };
 
-export const getAndEnqueueLinkUrls = async ({ crawler: { requestQueue }, request, enqueueLinks }) => {
-    const requests = (await enqueueLinks({
+/**
+ * Enqueue all links from the page and return their URLs
+ * @param {import('crawlee').CheerioCrawlingContext} context
+ * @returns {Promise<string[]>} Array of link URLs
+ */
+export const getAndEnqueueLinkUrls = async ({ request, enqueueLinks }) => {
+    const result = await enqueueLinks({
         selector: 'a',
         transformRequestFunction: (req) => {
             req.userData.referrer = request.url;
             return req;
-        }
-    })).processedRequests;
+        },
+    });
 
-    return requests.map((req) => req.uniqueKey);
+    return result.processedRequests.map((req) => req.uniqueKey);
 };
 
 /**
  * Find all HTML element IDs and <a name="xxx"> anchors,
  * basically anything that can be addressed by #fragment
- * @param {CheerioAPI} $ - Cheerio instance
- * @returns {Promise<any[]>} unique anchors
+ * @param {import('cheerio').CheerioAPI} $ - Cheerio instance
+ * @returns {string[]} unique anchors
  */
-const getAnchors = async ($) => {
-    const anchors = [];
+const getAnchors = ($) => {
+    const anchors = new Set();
 
     // Get anchors from <a name="xxx"> elements
-    $('body a[name]').each((i, elem) => {
+    $('body a[name]').each((_, elem) => {
         const name = $(elem).attr('name');
-        if (name) anchors.push(name);
+        if (name) anchors.add(name);
     });
 
     // Get anchors from elements with id attributes
-    $('body [id]').each((i, elem) => {
+    $('body [id]').each((_, elem) => {
         const id = $(elem).attr('id');
-        if (id) anchors.push(id);
+        if (id) anchors.add(id);
     });
 
-    const sortedAnchors = anchors.sort();
-    const uniqueAnchors = _.uniq(sortedAnchors, true);
-
-    return uniqueAnchors;
+    return [...anchors].sort();
 };

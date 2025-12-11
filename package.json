@@ -1,19 +1,20 @@
 {
 	"name": "broken-link-finder",
-	"version": "1.0.0",
-	"description": "Crawl web pages and check for broken links using HTTP requests",
+	"version": "2.0.0",
+	"description": "Modern Apify actor to crawl web pages and check for broken links using efficient HTTP requests",
 	"engines": {
-		"node": ">=16.0.0"
+		"node": ">=18.0.0"
 	},
 	"main": "main.js",
 	"dependencies": {
-		"apify": "^3.1.7",
-		"apify-shared": "^0.7.6",
-		"crawlee": "^3.4.1"
+		"apify": "^3.5.2",
+		"crawlee": "^3.13.8",
+		"cheerio": "^1.0.0-rc.12",
+		"puppeteer": "24.12.1"
 	},
 	"devDependencies": {
-		"@apify/eslint-config": "^0.2.2",
-		"eslint": "^8.7.0"
+		"@apify/eslint-config": "^0.4.0",
+		"eslint": "^8.57.0"
 	},
 	"scripts": {
 		"start": "node src/main.js",

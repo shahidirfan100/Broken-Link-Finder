@@ -1,16 +1,14 @@
 import { Actor, log } from 'apify';
-import _ from 'underscore';
 
 import utils from './apify-utils.js';
-
 import { BASE_URL_LABEL, OUTPUT_COLORS, STATUS_CODES, URL_PREFIX_REGEX } from './consts.js';
 
 /**
- * This function normalizes the URL and removes the #fragment.
- * @param {string} url 
+ * Normalize URL and remove the #fragment
+ * @param {string} url
  * @returns {string} normalized url
  */
-const normalizeUrl = (url) => {
+export const normalizeUrl = (url) => {
     const nurl = utils.normalizeUrl(url);
     if (nurl) return nurl;
 
@@ -23,48 +21,39 @@ const normalizeUrl = (url) => {
 /**
  * Creates collection of results for the provided base url.
  * @param {string} baseUrl
- * @param {any[]} records
- * @returns {Promise<any[]>} built results
+ * @param {object[]} records
+ * @returns {Promise<object[]>} built results
  */
-const getResults = async (baseUrl, records) => {
+export const getResults = async (baseUrl, records) => {
     const results = [];
-
-    // Dictionary of finished URLs. Key is normalized URL, value true if URL was already processed
-    const doneUrls = {};
-
-    const urlToRecord = await createUrlToRecordLookupTable(records);
-
-    // Array of normalized URLs to process
+    const doneUrls = new Set();
+    const urlToRecord = createUrlToRecordLookupTable(records);
     const pendingUrls = [baseUrl];
 
     while (pendingUrls.length > 0) {
         const url = pendingUrls.shift();
 
-        // Only process each URL once
-        if (doneUrls[url]) continue;
+        if (doneUrls.has(url)) continue;
+        doneUrls.add(url);
 
-        doneUrls[url] = true;
+        log.debug(`Processing result: ${url}`);
 
-        log.info(`Processing result: ${url}`);
-
-        const record = urlToRecord[url];
+        const record = urlToRecord.get(url);
 
         const result = {
             url,
-            title: record ? record.title : null,
+            title: record?.title ?? null,
             links: [],
         };
         results.push(result);
 
-        if (record && record.linkUrls) {
-            for (let linkUrl of record.linkUrls) {
+        if (record?.linkUrls) {
+            for (const linkUrl of record.linkUrls) {
                 const linkNurl = normalizeUrl(linkUrl);
-
                 const link = createLink(linkUrl, linkNurl, urlToRecord);
                 result.links.push(link);
 
-                // If the linked page is from the base website, add it to the processing queue
-                if (record.isBaseWebsite && !doneUrls[linkNurl]) {
+                if (record.isBaseWebsite && !doneUrls.has(linkNurl)) {
                     pendingUrls.push(linkNurl);
                 }
             }
@@ -74,8 +63,10 @@ const getResults = async (baseUrl, records) => {
     return results;
 };
 
+/**
+ * Create a link object with status information
+ */
 const createLink = (linkUrl, linkNurl, urlToRecord) => {
-    // Get fragment from URL
     const index = linkUrl.indexOf('#');
     const fragment = index > 0 ? linkUrl.substring(index + 1) : '';
 
@@ -89,36 +80,30 @@ const createLink = (linkUrl, linkNurl, urlToRecord) => {
         crawled: false,
     };
 
-    const record = urlToRecord[linkNurl];
+    const record = urlToRecord.get(linkNurl);
     if (record) {
-        // Page was crawled
         link.crawled = true;
         link.httpStatus = record.httpStatus;
         link.errorMessage = record.errorMessage;
-        link.fragmentValid = !fragment || !!record.anchorsDict[fragment];
+        link.fragmentValid = !fragment || record.anchorsSet?.has(fragment);
     }
 
     return link;
-}
+};
 
 /**
- * Creates a look-up table for normalized URL->record
- * and also creates a look-up table in record.anchorsDict for anchor->true
- * @param {any[]} records
- * @returns urlToRecord look-up table
+ * Creates a Map for normalized URL -> record lookup
+ * Also creates a Set in record.anchorsSet for fast anchor lookups
+ * @param {object[]} records
+ * @returns {Map<string, object>} urlToRecord lookup Map
  */
-const createUrlToRecordLookupTable = async (records) => {
-    const urlToRecord = {};
+const createUrlToRecordLookupTable = (records) => {
+    const urlToRecord = new Map();
 
-    records.forEach((record) => {
-        const { url } = record;
-        urlToRecord[url] = record;
-        record.anchorsDict = {};
-
-        _.each(record.anchors, (anchor) => {
-            record.anchorsDict[anchor] = true;
-        });
-    });
+    for (const record of records) {
+        urlToRecord.set(record.url, record);
+        record.anchorsSet = new Set(record.anchors || []);
+    }
 
     return urlToRecord;
 };
@@ -126,36 +111,21 @@ const createUrlToRecordLookupTable = async (records) => {
 /**
  * Saves results in JSON format into key value store.
  */
-const saveResults = async (results, baseUrl) => {
+export const saveResults = async (results, baseUrl) => {
     log.info('Saving results...');
     await Actor.setValue('OUTPUT', results);
 
     const html = generateHtmlReport(results, baseUrl);
-
     await Actor.setValue('OUTPUT.html', html, { contentType: 'text/html' });
 
-    log.info(`HTML report was stored to:
-    https://api.apify.com/v2/key-value-stores/${process.env.APIFY_DEFAULT_KEY_VALUE_STORE_ID}/records/OUTPUT.html?disableRedirect=1`);
+    const storeId = process.env.APIFY_DEFAULT_KEY_VALUE_STORE_ID;
+    log.info(`HTML report saved: https://api.apify.com/v2/key-value-stores/${storeId}/records/OUTPUT.html?disableRedirect=1`);
 };
 
 /**
- * 
- * @param {{
- *  url: string,
- *  isBaseWebsite: boolean,
- *  httpStatus: any,
- *  title: any,
- *  referrer: string
- *  linkUrls: any,
- *  anchors: any[],
- * }} record
- * @returns {{
- *  url: string,
- *  isBaseWebsite: boolean,
- *  httpStatus: any,
- *  title: any,
- *  referrer: string
- * }} csv friendly record
+ * Get CSV friendly record (subset of fields)
+ * @param {object} record
+ * @returns {object} csv friendly record
  */
 const getCsvFriendlyRecord = (record) => {
     const { url, isBaseWebsite, httpStatus, title, referrer } = record;
@@ -163,78 +133,100 @@ const getCsvFriendlyRecord = (record) => {
 };
 
 /**
- *
- * @param {{
- *  url: string,
- *  isBaseWebsite: boolean,
- *  httpStatus: any,
- *  title: any,
- *  linkUrls: any,
- *  anchors: any[],
- * }} record,
+ * Save record to dataset based on configuration
+ * @param {object} record
  * @param {boolean} saveOnlyBrokenLinks
  */
-const saveRecordToDataset = async (record, saveOnlyBrokenLinks) => {
+export const saveRecordToDataset = async (record, saveOnlyBrokenLinks) => {
     const filteredRecord = saveOnlyBrokenLinks ? getCsvFriendlyRecord(record) : record;
     const { httpStatus } = filteredRecord;
 
-    if (!saveOnlyBrokenLinks || (saveOnlyBrokenLinks && isErrorHttpStatus(httpStatus))) {
+    if (!saveOnlyBrokenLinks || isErrorHttpStatus(httpStatus)) {
         await Actor.pushData(filteredRecord);
     }
 };
 
-const getBaseUrlRequest = (baseUrl) => {
-    return {
-        url: baseUrl,
-        userData: { label: BASE_URL_LABEL },
-    }
-};
+/**
+ * Create initial request for base URL
+ */
+export const getBaseUrlRequest = (baseUrl) => ({
+    url: baseUrl,
+    userData: { label: BASE_URL_LABEL },
+});
 
-const hasBaseDomain = (baseUrl, url) => {
+/**
+ * Check if URL belongs to the same base domain
+ */
+export const hasBaseDomain = (baseUrl, url) => {
     const baseUrlStart = baseUrl.replace(URL_PREFIX_REGEX, '');
     const urlStart = url.replace(URL_PREFIX_REGEX, '');
-
     return urlStart.startsWith(baseUrlStart);
 };
 
-const generateHtmlHeader = (baseUrl) => {
-    return `
-<html>
-  <head>
+/**
+ * Generate HTML header for report
+ */
+const generateHtmlHeader = (baseUrl) => `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Broken link report for ${baseUrl}</title>
     <style>
         body {
-            font-family : Sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
         }
         th {
-            text-align: left;
+            background: #333;
+            color: white;
+        }
+        a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
         }
     </style>
-  </head>
-  <body>
+</head>
+<body>
+    <h1>Broken Link Report</h1>
+    <p>Base URL: <a href="${baseUrl}" target="_blank">${baseUrl}</a></p>
     <table>
-      <tr>
-        <th>From</th>
-        <th>To</th>
-        <th>HTTP&nbsp;status</th>
-        <th>Description</th>
-      </tr>`;
-}
+        <tr>
+            <th>From</th>
+            <th>To</th>
+            <th>HTTP&nbsp;Status</th>
+            <th>Description</th>
+        </tr>`;
 
-const generateHtmlFooter = () => {
-    return `
+const generateHtmlFooter = () => `
     </table>
-  </body>
+</body>
 </html>`;
-}
 
 /**
- * Generates html report from provided results.
- * @param {any[]} results
+ * Generates HTML report from provided results.
+ * @param {object[]} results
  * @param {string} baseUrl
- * @returns {string} Built html
+ * @param {boolean} brokenLinksOnly
+ * @returns {string} Built HTML
  */
-const generateHtmlReport = (results, baseUrl, brokenLinksOnly = false) => {
+export const generateHtmlReport = (results, baseUrl, brokenLinksOnly = false) => {
     let html = generateHtmlHeader(baseUrl);
 
     for (const result of results) {
@@ -242,85 +234,76 @@ const generateHtmlReport = (results, baseUrl, brokenLinksOnly = false) => {
             const { DEFAULT_LINK, BROKEN_LINK, INVALID_FRAGMENT, UNCRAWLED_LINK } = OUTPUT_COLORS;
 
             const isBrokenLink = isLinkBroken(link);
-            if (!brokenLinksOnly || (brokenLinksOnly && isBrokenLink)) {
-                let color = DEFAULT_LINK;
-                let description = 'OK';
-                if (!link.crawled) {
-                    color = UNCRAWLED_LINK;
-                    description = 'Page not crawled';
-                } else if (isBrokenLink) {
-                    color = BROKEN_LINK;
-                    description = link.errorMessage ? `Error: ${link.errorMessage}` : 'Invalid HTTP status';
-                } else if (!link.fragmentValid) {
-                    color = INVALID_FRAGMENT;
-                    description = 'URL fragment not found';
-                }
+            if (brokenLinksOnly && !isBrokenLink) continue;
 
-                html += `<tr style="background-color: ${color}">
+            let color = DEFAULT_LINK;
+            let description = 'OK';
+
+            if (!link.crawled) {
+                color = UNCRAWLED_LINK;
+                description = 'Page not crawled';
+            } else if (isBrokenLink) {
+                color = BROKEN_LINK;
+                description = link.errorMessage ? `Error: ${link.errorMessage}` : 'Invalid HTTP status';
+            } else if (!link.fragmentValid) {
+                color = INVALID_FRAGMENT;
+                description = 'URL fragment not found';
+            }
+
+            html += `
+                <tr style="background-color: ${color}">
                     <td><a href="${result.url}" target="_blank">${result.url}</a></td>
                     <td><a href="${link.url}" target="_blank">${link.url}</a></td>
                     <td>${link.httpStatus || ''}</td>
                     <td>${description}</td>
                 </tr>`;
-            }
         }
     }
 
     html += generateHtmlFooter();
-
     return html;
 };
 
-const isErrorHttpStatus = (httpStatus) => {
+/**
+ * Check if HTTP status indicates an error
+ */
+export const isErrorHttpStatus = (httpStatus) => {
     const { OK, REDIRECTION, NOT_MODIFIED } = STATUS_CODES;
     const isRedirection = httpStatus >= REDIRECTION && httpStatus !== NOT_MODIFIED;
     return !httpStatus || httpStatus < OK || isRedirection;
-}
+};
 
+/**
+ * Check if a link is broken
+ */
 const isLinkBroken = (link) => {
     const { crawled, errorMessage, httpStatus } = link;
     return crawled && (errorMessage || isErrorHttpStatus(httpStatus));
 };
 
-const removeLastSlash = (url) => {
-    return url.replace(/\/$/, '');
-}
+/**
+ * Remove trailing slash from URL
+ */
+export const removeLastSlash = (url) => url.replace(/\/$/, '');
 
 /**
- * Extracts broken links.
- * @param {any[]} results 
- * @returns {{
- *  link: any,
- *  baseUrl: string,
- * }[]} broken links
+ * Extracts broken links from results.
+ * @param {object[]} results
+ * @returns {object[]} broken links
  */
-const getBrokenLinks = (results) => {
+export const getBrokenLinks = (results) => {
     const brokenLinks = [];
 
-    results.forEach((result) => {
-        const { url, links } = result;
-        links.forEach((link) => {
+    for (const result of results) {
+        for (const link of result.links) {
             if (isLinkBroken(link)) {
                 brokenLinks.push({
                     link,
-                    baseUrl: url,
+                    baseUrl: result.url,
                 });
             }
-        });
-    });
+        }
+    }
 
     return brokenLinks;
-};
-
-export {
-    normalizeUrl,
-    getResults,
-    generateHtmlReport,
-    saveResults,
-    saveRecordToDataset,
-    getBrokenLinks,
-    getBaseUrlRequest,
-    hasBaseDomain,
-    isErrorHttpStatus,
-    removeLastSlash
 };

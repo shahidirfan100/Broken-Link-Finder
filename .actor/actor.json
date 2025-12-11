@@ -1,6 +1,10 @@
 {
 	"actorSpecification": 1,
 	"name": "broken-link-finder",
-	"version": "0.1",
-	"buildTag": "latest"
+	"title": "Broken Link Finder",
+	"description": "Crawl websites and detect broken links efficiently using HTTP requests",
+	"version": "2.0.0",
+	"buildTag": "latest",
+	"input": "../input_schema.json",
+	"dockerfile": "../Dockerfile"
 }
