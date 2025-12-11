@@ -21,42 +21,54 @@ await Actor.init();
 // Track start time for duration calculation
 const startTime = Date.now();
 
-// Get input configuration
+// Get input configuration - defaults MUST match input_schema.json
 const input = await Actor.getInput() ?? {};
 const {
-    maxConcurrency = 10,
-    maxPages = 1000,
-    maxCrawlDepth = 10,
-    notificationEmails,
-    saveOnlyBrokenLinks = true,
-    crawlSubdomains = false,
-    checkExternalLinks = true,
-    proxyConfiguration,
+    baseUrl: inputBaseUrl,
+    maxPages = 500,              // Must match input_schema.json default
+    maxCrawlDepth = 10,          // Must match input_schema.json default
+    maxConcurrency = 10,         // Must match input_schema.json default
+    checkExternalLinks = true,   // Must match input_schema.json default
+    saveOnlyBrokenLinks = true,  // Must match input_schema.json default
+    crawlSubdomains = false,     // Must match input_schema.json default
+    notificationEmails = [],     // Must match input_schema.json default
+    proxyConfiguration,          // Has default in input_schema.json
 } = input;
 
-const baseUrl = normalizeUrl(input.baseUrl);
+// Validate and normalize base URL
+const baseUrl = normalizeUrl(inputBaseUrl);
 
 if (!baseUrl) {
     throw new Error('Invalid baseUrl provided. Please provide a valid URL.');
 }
+
+// Validate numeric inputs are within schema bounds
+const validatedMaxPages = Math.max(1, Math.min(maxPages, 50000));
+const validatedMaxConcurrency = Math.max(1, Math.min(maxConcurrency, 50));
+const validatedMaxCrawlDepth = Math.max(1, Math.min(maxCrawlDepth, 50));
 
 // Set log level to reduce verbosity
 log.setLevel(log.LEVELS.INFO);
 
 log.info('🔗 Broken Link Finder Started', {
     baseUrl,
-    maxPages,
-    maxCrawlDepth,
+    maxPages: validatedMaxPages,
+    maxCrawlDepth: validatedMaxCrawlDepth,
+    maxConcurrency: validatedMaxConcurrency,
+    checkExternalLinks,
+    saveOnlyBrokenLinks,
+    crawlSubdomains,
 });
 
 // Setup request queue with initial URL (depth 0)
 const requestQueue = await Actor.openRequestQueue();
 await requestQueue.addRequest({
     ...getBaseUrlRequest(baseUrl),
+    uniqueKey: baseUrl,
     userData: {
         ...getBaseUrlRequest(baseUrl).userData,
-        depth: 0
-    }
+        depth: 0,
+    },
 });
 
 // Persistent storage for records
@@ -73,14 +85,14 @@ let linksFound = 0;
 const { WITH_SUBDOMAINS, WITHOUT_SUBDOMAINS } = MAX_REQUEST_RETRIES;
 const maxRequestRetries = crawlSubdomains ? WITH_SUBDOMAINS : WITHOUT_SUBDOMAINS;
 
-// Create optimized CheerioCrawler
+// Create optimized CheerioCrawler with validated inputs
 const crawler = new CheerioCrawler({
     proxyConfiguration: proxyConfiguration
         ? await Actor.createProxyConfiguration(proxyConfiguration)
         : undefined,
     requestQueue,
-    maxConcurrency: Math.min(maxConcurrency, 50),
-    maxRequestsPerCrawl: maxPages,
+    maxConcurrency: validatedMaxConcurrency,
+    maxRequestsPerCrawl: validatedMaxPages,
     maxRequestRetries: 1,
     requestHandlerTimeoutSecs: 30,
     navigationTimeoutSecs: 20,
@@ -102,12 +114,12 @@ const crawler = new CheerioCrawler({
             const crawlCurrentSubdomain = crawlSubdomains && isWithinBaseDomain;
 
             // Extract and check links from ALL pages within depth limit
-            if ((record.isBaseWebsite || isWithinBaseDomain || crawlCurrentSubdomain) && currentDepth < maxCrawlDepth) {
+            if ((record.isBaseWebsite || isWithinBaseDomain || crawlCurrentSubdomain) && currentDepth < validatedMaxCrawlDepth) {
                 const { linkUrls, linkData } = await getAndEnqueueLinkUrls(
                     context,
                     baseUrl,
                     currentDepth + 1,
-                    maxCrawlDepth,
+                    validatedMaxCrawlDepth,
                     checkExternalLinks
                 );
                 record.linkUrls = linkUrls;
@@ -118,9 +130,10 @@ const crawler = new CheerioCrawler({
             records.push(record);
             pagesProcessed++;
 
-            // Log progress every 10 pages
-            if (pagesProcessed % 10 === 0) {
-                log.info(`📊 Progress: ${pagesProcessed} pages, ${linksFound} links found`);
+            // Log progress every 10 pages or at specific milestones
+            if (pagesProcessed % 10 === 0 || pagesProcessed === 1) {
+                const progress = validatedMaxPages ? Math.round((pagesProcessed / validatedMaxPages) * 100) : 0;
+                log.info(`📊 Progress: ${pagesProcessed}/${validatedMaxPages} pages (${progress}%), ${linksFound} links`);
             }
         } catch (error) {
             log.warning(`⚠️ Error on ${url}: ${error.message}`);
@@ -168,13 +181,14 @@ const brokenLinks = getBrokenLinks(results);
 // Save summary to key-value store
 await saveResults(results, baseUrl, brokenLinks, startTime);
 
-// Send email notifications if broken links found
-if (brokenLinks.length > 0 && notificationEmails?.length > 0) {
+// Send email notifications if broken links found and emails provided
+if (brokenLinks.length > 0 && notificationEmails && notificationEmails.length > 0) {
     await sendEmailNotification(results, baseUrl, notificationEmails);
 }
 
 log.info('✅ Broken Link Finder Complete', {
     pagesChecked: pagesProcessed,
+    maxPagesAllowed: validatedMaxPages,
     linksChecked: linksFound,
     brokenLinks: brokenLinks.length,
 });

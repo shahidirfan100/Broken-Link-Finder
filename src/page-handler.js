@@ -2,6 +2,52 @@ import { BASE_URL_LABEL } from './consts.js';
 import { normalizeUrl } from './tools.js';
 import utils from './apify-utils.js';
 
+// URL patterns to skip (pagination, archives, etc.)
+const SKIP_URL_PATTERNS = [
+    /\/page\/\d+\/?$/i,           // Pagination: /page/2/, /page/3/
+    /\/tag\/[^/]+\/page\/\d+/i,   // Tag pagination
+    /\/category\/[^/]+\/page\/\d+/i, // Category pagination
+    /\/author\/[^/]+\/page\/\d+/i,   // Author pagination
+    /\?page=\d+/i,                // Query param pagination
+    /\?p=\d+/i,                   // WordPress paging
+    /\/feed\/?$/i,                // RSS feeds
+    /\/rss\/?$/i,                 // RSS feeds
+    /\/comments\/feed\/?$/i,      // Comment feeds
+    /\/trackback\/?$/i,           // Trackbacks
+    /\/wp-json\//i,               // WordPress API
+    /\/wp-admin\//i,              // WordPress admin
+    /\/wp-content\/uploads\//i,   // WordPress uploads
+    /\/attachment\//i,            // Attachment pages
+    /\/#respond$/i,               // Comment sections
+    /\/replytocom=/i,             // Reply to comment
+    /\/share[?/]/i,               // Share pages
+    /\/print\/?$/i,               // Print versions
+];
+
+// Archive URL patterns (crawl but don't go deep)
+const ARCHIVE_URL_PATTERNS = [
+    /\/tag\/[^/]+\/?$/i,          // Tag archives
+    /\/category\/[^/]+\/?$/i,     // Category archives
+    /\/author\/[^/]+\/?$/i,       // Author archives
+    /\/\d{4}\/\d{2}\/?$/i,        // Date archives: /2024/01/
+    /\/\d{4}\/?$/i,               // Year archives: /2024/
+    /\/archive\//i,               // Generic archives
+];
+
+/**
+ * Check if URL should be skipped entirely
+ */
+const shouldSkipUrl = (url) => {
+    return SKIP_URL_PATTERNS.some(pattern => pattern.test(url));
+};
+
+/**
+ * Check if URL is an archive page (limit depth)
+ */
+const isArchivePage = (url) => {
+    return ARCHIVE_URL_PATTERNS.some(pattern => pattern.test(url));
+};
+
 /**
  * Analyses the current page and creates the corresponding info record.
  * @param {import('crawlee').CheerioCrawlingContext} context
@@ -28,8 +74,8 @@ export const getPageRecord = async ({ request, $, response }) => {
 };
 
 /**
- * Extract and enqueue ALL links from the page
- * Uses URL normalization to prevent duplicate crawls
+ * Extract and enqueue links from the page
+ * Filters out pagination and archive pages to prevent crawl bloat
  * @param {import('crawlee').CheerioCrawlingContext} context
  * @param {string} baseUrl - The base URL to determine internal/external links
  * @param {number} nextDepth - Depth for enqueued requests
@@ -38,7 +84,7 @@ export const getPageRecord = async ({ request, $, response }) => {
  * @returns {Promise<object>} Object with linkUrls array and linkData map
  */
 export const getAndEnqueueLinkUrls = async (
-    { request, enqueueLinks, $ },
+    { request, $, enqueueLinks },
     baseUrl,
     nextDepth = 1,
     maxDepth = 10,
@@ -48,6 +94,10 @@ export const getAndEnqueueLinkUrls = async (
     const allLinks = [];
     const internalLinksToEnqueue = [];
     const seenUrls = new Set();
+
+    // Check if current page is an archive (limit its depth contribution)
+    const currentIsArchive = isArchivePage(request.url);
+    const effectiveNextDepth = currentIsArchive ? maxDepth : nextDepth; // Archives don't contribute to depth
 
     // Get the base hostname for comparison (without www)
     let baseHostname;
@@ -89,6 +139,11 @@ export const getAndEnqueueLinkUrls = async (
         }
         seenUrls.add(normalizedUrl);
 
+        // Skip pagination and problematic URLs
+        if (shouldSkipUrl(normalizedUrl)) {
+            return;
+        }
+
         // Extract link metadata
         const linkText = $link.text().trim().substring(0, 100) || $link.attr('title') || '';
         const isImage = $link.find('img').length > 0;
@@ -127,34 +182,33 @@ export const getAndEnqueueLinkUrls = async (
             isImage,
         });
 
-        // Add internal links (non-resource) to crawl queue
-        if (isInternal && linkType !== 'resource') {
+        // Add internal links (non-resource, non-archive) to crawl queue
+        if (isInternal && linkType !== 'resource' && !isArchivePage(normalizedUrl)) {
             internalLinksToEnqueue.push({
                 url: normalizedUrl,
-                uniqueKey: normalizedUrl, // Use normalized URL as unique key
+                uniqueKey: normalizedUrl,
             });
         }
 
-        // Add all links for checking
+        // Add all links for checking (to find broken links)
         if (isInternal || checkExternalLinks) {
             allLinks.push(normalizedUrl);
         }
     });
 
     // Enqueue internal links for further crawling (within depth limit)
-    if (nextDepth <= maxDepth && internalLinksToEnqueue.length > 0) {
-        // Use addRequests instead of enqueueLinks for better control
-        const { addRequests } = await import('crawlee');
-        const requestQueue = await (await import('apify')).Actor.openRequestQueue();
+    if (effectiveNextDepth <= maxDepth && internalLinksToEnqueue.length > 0) {
+        const { Actor } = await import('apify');
+        const requestQueue = await Actor.openRequestQueue();
 
         for (const { url, uniqueKey } of internalLinksToEnqueue) {
             try {
                 await requestQueue.addRequest({
                     url,
-                    uniqueKey, // This ensures the same page isn't added twice
+                    uniqueKey,
                     userData: {
                         referrer: request.url,
-                        depth: nextDepth,
+                        depth: effectiveNextDepth,
                     },
                 }, { forefront: false });
             } catch {
