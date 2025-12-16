@@ -8,7 +8,8 @@
 	"input": "../input_schema.json",
 	"dockerfile": "../Dockerfile",
 	"storages": {
-		"dataset": {
+    "dataset": {
+			"schema": "./dataset_schema.json",
 			"actorSpecification": 1,
 			"title": "Broken Links Report",
 			"description": "Dataset containing all crawled pages and their link status",
