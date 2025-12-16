@@ -1,73 +1,89 @@
 {
   "actorSpecification": 1,
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Broken Link Finder Dataset Schema",
-  "description": "Schema for the dataset output - each record represents a link found on the website",
-  "type": "object",
-  "properties": {
-    "sourceUrl": {
-      "type": "string",
-      "description": "The page URL where the link was found"
+  "views": {
+    "brokenLinks": {
+      "title": "Broken Links",
+      "description": "View showing only broken links",
+      "transformation": {
+        "fields": [
+          "sourceUrl",
+          "targetUrl",
+          "httpStatus",
+          "status",
+          "isBroken",
+          "severity",
+          "errorMessage"
+        ],
+        "filter": "item.isBroken === true"
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "sourceUrl": {
+            "label": "Source Page",
+            "format": "link"
+          },
+          "targetUrl": {
+            "label": "Broken Link",
+            "format": "link"
+          },
+          "httpStatus": {
+            "label": "HTTP Status"
+          },
+          "status": {
+            "label": "Status"
+          },
+          "severity": {
+            "label": "Severity"
+          },
+          "errorMessage": {
+            "label": "Error"
+          }
+        }
+      }
     },
-    "sourceTitle": {
-      "type": "string",
-      "description": "Title of the source page"
-    },
-    "targetUrl": {
-      "type": "string",
-      "description": "The URL of the link being checked"
-    },
-    "linkText": {
-      "type": "string",
-      "description": "The anchor text of the link (what users see)"
-    },
-    "linkType": {
-      "type": "string",
-      "description": "Type of link: internal, external, or resource"
-    },
-    "httpStatus": {
-      "type": [
-        "integer",
-        "null"
-      ],
-      "description": "HTTP status code (200, 404, 500, etc.)"
-    },
-    "status": {
-      "type": "string",
-      "description": "Link status: OK, Broken, Timeout, Not Found, Server Error"
-    },
-    "isBroken": {
-      "type": "boolean",
-      "description": "True if the link is broken"
-    },
-    "severity": {
-      "type": "string",
-      "description": "Issue severity: none, low, medium, high"
-    },
-    "issueType": {
-      "type": "string",
-      "description": "Specific issue: none, 404, 500, timeout, redirect_loop, invalid_url"
-    },
-    "errorMessage": {
-      "type": "string",
-      "description": "Detailed error message if link check failed"
-    },
-    "responseTime": {
-      "type": [
-        "integer",
-        "null"
-      ],
-      "description": "Response time in milliseconds"
-    },
-    "checkedAt": {
-      "type": "string",
-      "description": "Timestamp when the link was checked"
+    "allLinks": {
+      "title": "All Links",
+      "description": "View showing all crawled links",
+      "transformation": {
+        "fields": [
+          "sourceUrl",
+          "targetUrl",
+          "linkText",
+          "linkType",
+          "httpStatus",
+          "status",
+          "isBroken"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "sourceUrl": {
+            "label": "Source Page",
+            "format": "link"
+          },
+          "targetUrl": {
+            "label": "Target Link",
+            "format": "link"
+          },
+          "linkText": {
+            "label": "Link Text"
+          },
+          "linkType": {
+            "label": "Type"
+          },
+          "httpStatus": {
+            "label": "HTTP"
+          },
+          "status": {
+            "label": "Status"
+          },
+          "isBroken": {
+            "label": "Broken?"
+          }
+        }
+      }
     }
-  },
-  "required": [
-    "sourceUrl",
-    "targetUrl",
-    "status",
-    "isBroken"
-  ]
+  }
 }
