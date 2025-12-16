@@ -1,8 +1,12 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Broken Link Finder Dataset Schema",
-  "description": "Schema for the dataset output - each record represents a link found on the website",
-  "type": "object",
+  "actorSpecification": 1,
+  "title": "Broken Links Report",
+  "description": "Dataset containing all crawled pages and their link status",
+  "schema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Broken Link Finder Dataset Schema",
+    "description": "Schema for the dataset output - each record represents a link found on the website",
+    "type": "object",
   "properties": {
     "sourceUrl": {
       "type": "string",
@@ -69,4 +73,91 @@
     "status",
     "isBroken"
   ]
+  },
+  "views": {
+    "brokenLinks": {
+      "title": "Broken Links",
+      "description": "View showing only broken links",
+      "transformation": {
+        "fields": [
+          "sourceUrl",
+          "targetUrl",
+          "httpStatus",
+          "status",
+          "isBroken",
+          "severity",
+          "errorMessage"
+        ],
+        "filter": "item.isBroken === true"
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "sourceUrl": {
+            "label": "Source Page",
+            "format": "link"
+          },
+          "targetUrl": {
+            "label": "Broken Link",
+            "format": "link"
+          },
+          "httpStatus": {
+            "label": "HTTP Status"
+          },
+          "status": {
+            "label": "Status"
+          },
+          "severity": {
+            "label": "Severity"
+          },
+          "errorMessage": {
+            "label": "Error"
+          }
+        }
+      }
+    },
+    "allLinks": {
+      "title": "All Links",
+      "description": "View showing all crawled links",
+      "transformation": {
+        "fields": [
+          "sourceUrl",
+          "targetUrl",
+          "linkText",
+          "linkType",
+          "httpStatus",
+          "status",
+          "isBroken"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "sourceUrl": {
+            "label": "Source Page",
+            "format": "link"
+          },
+          "targetUrl": {
+            "label": "Target Link",
+            "format": "link"
+          },
+          "linkText": {
+            "label": "Link Text"
+          },
+          "linkType": {
+            "label": "Type"
+          },
+          "httpStatus": {
+            "label": "HTTP"
+          },
+          "status": {
+            "label": "Status"
+          },
+          "isBroken": {
+            "label": "Broken?"
+          }
+        }
+      }
+    }
+  }
 }
