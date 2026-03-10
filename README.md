@@ -1,209 +1,265 @@
 # Broken Link Finder
 
-Find and fix broken links on any website. This tool crawls your pages, checks every link, and reports which ones are broken — helping you maintain SEO rankings and provide a better user experience.
-
-## What does Broken Link Finder do?
-
-Broken Link Finder automatically scans your website to detect:
-
-- **404 errors** — Pages that no longer exist
-- **Server errors (5xx)** — Links to pages with server problems
-- **Timeout issues** — Links that take too long to respond
-- **Invalid anchors** — Fragment links (#section) that don't exist on the page
-- **External broken links** — Dead links pointing to other websites
-
-## Why check for broken links?
-
-Broken links hurt your website in multiple ways:
-
-1. **SEO Impact** — Search engines penalize sites with broken links
-2. **User Experience** — Visitors leave when they hit dead ends
-3. **Lost Revenue** — Broken product or checkout links cost sales
-4. **Credibility** — Broken links make your site look unmaintained
+Automatically detect and report broken links across any website with fast, reliable crawling. Scan entire domains, check both internal and external links, and receive detailed reports on every dead link — including HTTP status codes, severity levels, and the exact pages where broken links were found. Perfect for SEO audits, site migrations, and ongoing website maintenance.
 
 ## Features
 
-- **Deep crawling** — Check links inside article pages, not just the homepage
-- **Configurable depth** — Control how deep the crawler goes (1-10 levels)
-- **Fast parallel checking** — Scan up to 50 pages simultaneously
-- **External link checking** — Verify links to other websites work
-- **Smart content detection** — Focuses on main content, skips navigation menus
-- **Email notifications** — Get reports sent directly to your inbox
-- **Detailed reports** — HTML and JSON reports with all findings
+- **Full-site crawling** — Automatically follows links across your entire website to find every broken link
+- **Internal & external link checking** — Verifies links both within your domain and to third-party websites
+- **Configurable crawl depth** — Control how many levels deep the crawler explores (1–50 levels)
+- **Parallel processing** — Scan up to 50 pages simultaneously for fast results
+- **Subdomain support** — Optionally crawl subdomains as part of the same audit
+- **Severity classification** — Each broken link is rated as high, medium, or low severity
+- **Email notifications** — Receive the broken links report directly in your inbox when the run completes
+- **Flexible output** — Save only broken links or all crawled links for further analysis
+- **Proxy support** — Built-in proxy configuration to avoid rate limiting on larger sites
 
-## How to use
+---
 
-1. Click **Try for free** to open the actor
-2. Enter your **Website URL** (e.g., `https://example.com/blog`)
-3. Set **Crawl depth** to control how deep to check (default: 3)
-4. Set **Max pages** to limit the crawl size (default: 100)
-5. Click **Start** and wait for results
-6. Download the report or view online
+## Use Cases
 
-## Input options
+### SEO Health Audits
+Broken links are a known SEO negative signal. Regularly scan your website to identify all 404s, server errors, and dead links before search engines penalize your rankings. Keep your site healthy and fully indexed.
 
-| Field | Description | Default |
-|-------|-------------|---------|
-| **Website URL** | The starting URL to crawl | Required |
-| **Max pages** | Maximum pages to crawl | 100 |
-| **Crawl depth** | How many levels deep to check links | 3 |
-| **Max concurrency** | Pages to check in parallel | 10 |
-| **Check external links** | Also verify links to other sites | Yes |
-| **Save only broken links** | Only save broken links to dataset | Yes |
-| **Crawl subdomains** | Include subdomains in the crawl | No |
-| **Notification emails** | Email addresses for reports | None |
+### Site Migrations & Redesigns
+After moving to a new domain, platform, or CMS, use this tool to verify every URL redirects correctly and no pages were left behind. Catch all missing redirects before going live.
 
-## Input example
+### E-commerce Store Maintenance
+Dead product links, missing image links, and broken checkout paths directly cost you revenue. Detect and fix them proactively to ensure customers always reach the right destination.
 
-Check a blog for broken links, going 3 levels deep:
+### Blog & Content Site Management
+Old articles often reference pages that no longer exist. Use periodic crawls to surface every outdated link in your content archive and update them before readers encounter dead ends.
+
+### Documentation Site Quality Control
+Ensure all cross-references, external API links, and code reference URLs in your documentation remain valid. Maintain developer trust with a fully functional docs site.
+
+---
+
+## Input Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `baseUrl` | String | Yes | — | The starting URL to crawl (homepage or specific page) |
+| `maxPages` | Integer | No | `500` | Maximum number of pages to crawl |
+| `maxCrawlDepth` | Integer | No | `10` | How many levels deep to follow links |
+| `maxConcurrency` | Integer | No | `10` | Number of pages to check in parallel (max 50) |
+| `checkExternalLinks` | Boolean | No | `true` | Also verify links pointing to external websites |
+| `saveOnlyBrokenLinks` | Boolean | No | `true` | Save only broken links; disable to save all links |
+| `crawlSubdomains` | Boolean | No | `false` | Include subdomains in the crawl |
+| `notificationEmails` | Array | No | `[]` | Email addresses to receive the completed report |
+| `proxyConfiguration` | Object | No | Apify Proxy | Proxy settings for large or rate-limited crawls |
+
+---
+
+## Output Data
+
+Each record in the dataset contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sourceUrl` | String | URL of the page that contains the broken link |
+| `sourceTitle` | String | Title of the page where the link was found |
+| `targetUrl` | String | The broken link URL that was checked |
+| `linkText` | String | The anchor text of the broken link |
+| `linkType` | String | `internal` or `external` |
+| `httpStatus` | Integer | HTTP response code (e.g., 404, 500) |
+| `status` | String | Human-readable status (e.g., "Not Found") |
+| `isBroken` | Boolean | Whether the link is broken |
+| `severity` | String | Severity level: `high`, `medium`, or `low` |
+| `issueType` | String | Type of issue (e.g., `404_not_found`, `timeout`) |
+| `errorMessage` | String | Additional error details if available |
+| `checkedAt` | String | ISO timestamp of when the link was checked |
+
+---
+
+## Usage Examples
+
+### Basic Blog Audit
+
+Check a blog for broken links with default settings:
 
 ```json
 {
     "baseUrl": "https://example.com/blog",
-    "maxPages": 500,
+    "maxPages": 200,
     "maxCrawlDepth": 3,
-    "maxConcurrency": 10,
     "checkExternalLinks": true,
     "saveOnlyBrokenLinks": true
 }
 ```
 
-Check an entire e-commerce site including subdomains:
+### Full E-commerce Site Crawl
+
+Crawl an entire store including subdomains and receive an email report:
 
 ```json
 {
     "baseUrl": "https://shop.example.com",
     "maxPages": 2000,
-    "maxCrawlDepth": 4,
+    "maxCrawlDepth": 5,
+    "maxConcurrency": 20,
     "crawlSubdomains": true,
-    "notificationEmails": ["webmaster@example.com"]
+    "checkExternalLinks": true,
+    "notificationEmails": ["webmaster@example.com", "seo@example.com"]
 }
 ```
 
-## Output
+### Quick Surface Check
 
-Results are saved in two formats:
+Rapidly scan just the top-level pages of a site:
 
-### Dataset (structured data)
+```json
+{
+    "baseUrl": "https://example.com",
+    "maxPages": 50,
+    "maxCrawlDepth": 1,
+    "checkExternalLinks": false,
+    "saveOnlyBrokenLinks": true
+}
+```
 
-Each broken link is saved as a record:
+### Large Site Audit with Proxy
+
+Audit a high-traffic site with residential proxies to avoid rate limits:
+
+```json
+{
+    "baseUrl": "https://large-site.com",
+    "maxPages": 10000,
+    "maxCrawlDepth": 10,
+    "maxConcurrency": 30,
+    "proxyConfiguration": {
+        "useApifyProxy": true,
+        "apifyProxyGroups": ["RESIDENTIAL"]
+    }
+}
+```
+
+---
+
+## Sample Output
 
 ```json
 {
     "sourceUrl": "https://example.com/blog/old-post",
     "sourceTitle": "My Old Blog Post",
     "targetUrl": "https://example.com/deleted-page",
-    "linkText": "Click here",
+    "linkText": "Click here to learn more",
     "linkType": "internal",
     "httpStatus": 404,
     "status": "Not Found",
     "isBroken": true,
     "severity": "high",
     "issueType": "404_not_found",
-    "checkedAt": "2024-01-15T10:30:00Z"
+    "errorMessage": "",
+    "checkedAt": "2025-06-10T10:30:00Z"
 }
 ```
 
-### Key-Value Store
+---
 
-- **OUTPUT** — JSON summary with statistics and all broken links
-- **OUTPUT.html** — Visual HTML report for easy viewing
+## Tips for Best Results
 
-## Understanding the results
+### Start with a Smaller Crawl
+- Test with `maxPages: 50–100` first to verify your settings before scaling up
+- Use `maxCrawlDepth: 2–3` for initial checks on large sites
 
-| Status | HTTP Code | Severity | Meaning |
-|--------|-----------|----------|---------|
-| OK | 200 | None | Link works correctly |
-| Redirect | 301/302 | Low | Link redirects (usually fine) |
-| Not Found | 404 | High | Page doesn't exist |
-| Forbidden | 403 | Medium | Access denied |
-| Server Error | 500+ | High | Server problem |
-| Timeout | — | High | Page didn't respond |
+### Control Crawl Speed
+- Reduce `maxConcurrency` to `5` if your server throttles or blocks the crawler
+- Use proxy configuration for sites with strict rate limiting
 
-## How crawl depth works
+### Schedule Regular Audits
+- Use Apify Schedules to run weekly or monthly link checks automatically
+- Set up `notificationEmails` so reports land directly in your inbox without manually checking
 
-The **Crawl depth** setting controls how deep the crawler goes:
+### Understand Severity Levels
+- **High** — 404s and server errors: fix immediately as they impact SEO and users
+- **Medium** — 403 Forbidden links: review access settings or remove the links
+- **Low** — Redirects (301/302): update to direct URLs to avoid redirect chains
 
-| Depth | What gets checked |
-|-------|-------------------|
-| 1 | Only links on the starting page |
-| 2 | Starting page + one level of linked pages |
-| 3 | Two levels deep (recommended for most sites) |
-| 4+ | Deeper crawling for large content sites |
+---
 
-**Example with depth 3:**
-1. Crawls category page `/blog/tutorials`
-2. Finds 20 article links, crawls each article
-3. Checks all links inside each article (images, downloads, related posts)
+## Understanding Results
 
-## Use cases
+| HTTP Status | Severity | Meaning |
+|-------------|----------|---------|
+| 404 | High | Page does not exist — update or remove the link |
+| 500+ | High | Server error on the target page |
+| Timeout | High | Target page did not respond in time |
+| 403 | Medium | Access denied to the target page |
+| 301 / 302 | Low | Redirect — works but may slow page load |
 
-### Blog and content sites
-Find broken links in old articles that reference deleted pages or outdated external resources.
-
-### E-commerce stores
-Detect broken product links, missing images, and dead checkout paths before customers do.
-
-### Documentation sites
-Ensure all internal links between docs work and external API references are valid.
-
-### Site migrations
-Verify all old URLs properly redirect after moving to a new domain or platform.
-
-### Regular SEO audits
-Schedule weekly or monthly checks to catch broken links before search engines do.
-
-## Cost estimation
-
-Costs depend on pages crawled and resources used:
-
-| Site Size | Pages | Estimated Cost |
-|-----------|-------|----------------|
-| Small | 100 | ~$0.10-0.25 |
-| Medium | 1,000 | ~$1.00-2.50 |
-| Large | 10,000 | ~$10.00-25.00 |
-
-## Tips for best results
-
-1. **Start small** — Test with 50-100 pages first to verify settings
-2. **Use appropriate depth** — Depth 3 works for most sites
-3. **Lower concurrency** — Reduce to 5 if you get rate-limited
-4. **Schedule regular checks** — Use Apify schedules for weekly monitoring
-5. **Check external links** — Many broken links point to other sites
+---
 
 ## Integrations
 
-Export results to:
-- Google Sheets
-- Slack notifications
-- Email reports
-- Webhooks for custom integrations
-- Any tool via Apify API
+Connect your broken links data with:
 
-## FAQ
+- **Google Sheets** — Export the dataset for team review and tracking
+- **Airtable** — Build a searchable link audit database
+- **Slack** — Get run completion and error notifications
+- **Make (formerly Integromat)** — Trigger automated fix workflows
+- **Zapier** — Connect to hundreds of tools and automate follow-up tasks
+- **Webhooks** — Send results directly to your custom systems
 
-**How long does a crawl take?**
+### Export Formats
 
-A 100-page site typically completes in 2-5 minutes. Larger sites take proportionally longer.
+Download your broken links report in multiple formats:
 
-**Will this slow down my website?**
+- **JSON** — For developers and API integrations
+- **CSV** — For spreadsheet analysis and sharing
+- **Excel** — For business reporting
+- **XML** — For system-to-system integrations
 
-The crawler includes rate limiting and respects server responses. Reduce concurrency if needed.
+---
 
-**Can I check competitor websites?**
+## Frequently Asked Questions
 
-Yes, but respect their terms of service and use reasonable crawl limits.
+### How many pages can I crawl?
+You can crawl up to 50,000 pages per run. For most websites, the default setting of 500 pages covers the entire site.
 
-**What's the difference between internal and external links?**
+### How long does a crawl take?
+A 100-page site typically completes in 2–5 minutes. A 1,000-page site takes around 15–30 minutes depending on concurrency and server response times.
 
-Internal links point to pages on your site. External links point to other websites.
+### Will this slow down my website?
+The crawler respects server responses and includes built-in rate limiting. Reduce `maxConcurrency` to 3–5 if you notice any impact on site performance.
 
-**How do I fix broken links?**
+### Can I check external links too?
+Yes. Enable `checkExternalLinks` to verify every outbound link to third-party websites. This is recommended for thorough SEO audits.
 
-Update the link to the correct URL, set up a redirect, or remove the link entirely.
+### What is "save only broken links"?
+When enabled, only records where `isBroken: true` are saved to the dataset — keeping your results clean and focused. Disable it to save every crawled link for a complete audit log.
+
+### Can I crawl subdomains?
+Yes. Enable `crawlSubdomains` to include related subdomains (e.g., `blog.example.com` when crawling `example.com`).
+
+### How often should I run link checks?
+For active content sites, weekly checks are recommended. For stable sites, monthly audits are typically sufficient to stay ahead of link rot.
+
+### What happens if a page redirects?
+Redirects (301/302) are flagged as low-severity findings. They technically work but are worth updating to direct URLs to improve page speed and avoid redirect chains.
+
+### Can I schedule automatic runs?
+Yes. Use Apify Schedules to set up recurring crawls at any interval and pair them with email notifications to receive reports automatically.
+
+### What output formats are available?
+Results are available as JSON, CSV, Excel, and XML. An HTML summary report is also generated in the Key-Value Store for easy visual review.
+
+---
 
 ## Support
 
+For issues or feature requests, contact support through the Apify Console.
+
+### Resources
+
 - [Apify Documentation](https://docs.apify.com/)
+- [API Reference](https://docs.apify.com/api/v2)
+- [Scheduling Runs](https://docs.apify.com/schedules)
 - [Community Forum](https://discord.gg/apify)
-- [Contact Support](https://apify.com/contact)
+
+---
+
+## Legal Notice
+
+This actor is designed for legitimate website auditing and SEO maintenance purposes. Users are responsible for ensuring compliance with the target website's terms of service and applicable laws. Use reasonable crawl limits and respect server rate limits at all times.
